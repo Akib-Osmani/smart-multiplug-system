@@ -28,7 +28,7 @@ A comprehensive web-based monitoring system for smart multiplug devices with rea
 - **Node.js** with Express framework
 - **Socket.io** for real-time communication
 - **SQLite3** for database storage
-- **Puppeteer** for PDF generation
+- **Puppeteer** for PDF generation (temporarily disabled for hosting)
 - **CSV-Writer** for data export
 - **Node-Cron** for scheduled tasks
 

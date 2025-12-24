@@ -13,7 +13,7 @@
     "cors": "^2.8.5",
     "sqlite3": "^5.1.6",
     "csv-writer": "^1.6.0",
-    "puppeteer": "^21.3.8",
+
     "moment": "^2.29.4",
     "node-cron": "^3.0.2"
   },

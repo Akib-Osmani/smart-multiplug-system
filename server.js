@@ -8,7 +8,7 @@ const fs = require('fs');
 const moment = require('moment');
 const cron = require('node-cron');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
-const puppeteer = require('puppeteer');
+// const puppeteer = require('puppeteer');
 
 // Server initialization
 const app = express();
@@ -381,86 +381,9 @@ async function exportToCSV(startDate, endDate) {
   });
 }
 
+// PDF export temporarily disabled for hosting
 async function exportToPDF(dashboardData) {
-  const browser = await puppeteer.launch();
-  const page = await browser.newPage();
-  
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Smart Multiplug Report</title>
-      <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .header { text-align: center; margin-bottom: 30px; }
-        .section { margin-bottom: 20px; }
-        .port-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-        .port-card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; }
-        .summary { background: #f5f5f5; padding: 15px; border-radius: 8px; }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <h1>Smart Multiplug System Report</h1>
-        <p>Generated on: ${moment().format('YYYY-MM-DD HH:mm:ss')}</p>
-      </div>
-      
-      <div class="section">
-        <h2>Current Status</h2>
-        <div class="port-grid">
-          ${Object.keys(dashboardData.realtime).map(portKey => {
-            const port = portKey.replace('port', '');
-            const data = dashboardData.realtime[portKey];
-            return `
-              <div class="port-card">
-                <h3>Port ${port}</h3>
-                <p>Voltage: ${data.voltage}V</p>
-                <p>Current: ${data.current}A</p>
-                <p>Power: ${data.power}W</p>
-                <p>Status: ${data.status}</p>
-              </div>
-            `;
-          }).join('')}
-        </div>
-      </div>
-      
-      <div class="section">
-        <h2>Today's Summary</h2>
-        <div class="summary">
-          <p>Total Energy: ${dashboardData.today.total.energy} kWh</p>
-          <p>Total Cost: ${dashboardData.today.total.cost} BDT</p>
-          <p>Total Runtime: ${dashboardData.today.total.runtime}</p>
-        </div>
-      </div>
-      
-      <div class="section">
-        <h2>Monthly Summary</h2>
-        <div class="summary">
-          <p>Total Energy: ${dashboardData.monthly.total.energy} kWh</p>
-          <p>Total Cost: ${dashboardData.monthly.total.cost} BDT</p>
-          <p>Days: ${dashboardData.monthly.total.days}</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-  
-  await page.setContent(htmlContent);
-  
-  // Ensure exports directory exists
-  if (!fs.existsSync('./exports')) {
-    fs.mkdirSync('./exports');
-  }
-  
-  const pdfPath = './exports/multiplug_report.pdf';
-  await page.pdf({ 
-    path: pdfPath, 
-    format: 'A4',
-    printBackground: true
-  });
-  
-  await browser.close();
-  return pdfPath;
+  throw new Error('PDF export is temporarily disabled. Use CSV export instead.');
 }
 
 // Get dashboard data
