@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Multiplug Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Header Section -->
+    <header class="header">
+        <div class="container">
+            <h1><i class="fas fa-plug"></i> Smart Multiplug Dashboard</h1>
+            <div class="header-info">
+                <span id="lastUpdate">Last Update: --</span>
+                <span id="electricityRate">Rate: 8 BDT/kWh</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Dashboard Container -->
+    <div class="container">
+        <!-- Real-time Status Section -->
+        <section class="realtime-section">
+            <h2><i class="fas fa-bolt"></i> Real-time Status</h2>
+            <div class="ports-grid">
+                <!-- Port 1 -->
+                <div class="port-card" id="port1">
+                    <div class="port-header">
+                        <h3>Port 1</h3>
+                        <span class="status-indicator offline" id="status1">Offline</span>
+                    </div>
+                    <div class="port-metrics">
+                        <div class="metric">
+                            <span class="metric-label">Voltage</span>
+                            <span class="metric-value" id="voltage1">0V</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Current</span>
+                            <span class="metric-value" id="current1">0A</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Power</span>
+                            <span class="metric-value" id="power1">0W</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Port 2 -->
+                <div class="port-card" id="port2">
+                    <div class="port-header">
+                        <h3>Port 2</h3>
+                        <span class="status-indicator offline" id="status2">Offline</span>
+                    </div>
+                    <div class="port-metrics">
+                        <div class="metric">
+                            <span class="metric-label">Voltage</span>
+                            <span class="metric-value" id="voltage2">0V</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Current</span>
+                            <span class="metric-value" id="current2">0A</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Power</span>
+                            <span class="metric-value" id="power2">0W</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Port 3 -->
+                <div class="port-card" id="port3">
+                    <div class="port-header">
+                        <h3>Port 3</h3>
+                        <span class="status-indicator offline" id="status3">Offline</span>
+                    </div>
+                    <div class="port-metrics">
+                        <div class="metric">
+                            <span class="metric-label">Voltage</span>
+                            <span class="metric-value" id="voltage3">0V</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Current</span>
+                            <span class="metric-value" id="current3">0A</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Power</span>
+                            <span class="metric-value" id="power3">0W</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Port 4 -->
+                <div class="port-card" id="port4">
+                    <div class="port-header">
+                        <h3>Port 4</h3>
+                        <span class="status-indicator offline" id="status4">Offline</span>
+                    </div>
+                    <div class="port-metrics">
+                        <div class="metric">
+                            <span class="metric-label">Voltage</span>
+                            <span class="metric-value" id="voltage4">0V</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Current</span>
+                            <span class="metric-value" id="current4">0A</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Power</span>
+                            <span class="metric-value" id="power4">0W</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Billing Summary Section -->
+        <section class="billing-section">
+            <h2><i class="fas fa-calculator"></i> Billing Summary</h2>
+            <div class="billing-grid">
+                <!-- Today's Summary -->
+                <div class="billing-card today-card">
+                    <h3><i class="fas fa-calendar-day"></i> Today</h3>
+                    <div class="billing-metrics">
+                        <div class="metric">
+                            <span class="metric-label">Energy</span>
+                            <span class="metric-value" id="todayEnergy">0 kWh</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Cost</span>
+                            <span class="metric-value" id="todayCost">0 BDT</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Runtime</span>
+                            <span class="metric-value" id="todayRuntime">0h 0m</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Monthly Summary -->
+                <div class="billing-card monthly-card">
+                    <h3><i class="fas fa-calendar-alt"></i> This Month</h3>
+                    <div class="billing-metrics">
+                        <div class="metric">
+                            <span class="metric-label">Energy</span>
+                            <span class="metric-value" id="monthlyEnergy">0 kWh</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Cost</span>
+                            <span class="metric-value" id="monthlyCost">0 BDT</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Days</span>
+                            <span class="metric-value" id="monthlyDays">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Port-wise Daily Consumption -->
+                <div class="billing-card ports-daily-card">
+                    <h3><i class="fas fa-chart-bar"></i> Daily Consumption</h3>
+                    <div class="port-consumption">
+                        <div class="port-item">
+                            <span class="port-label">Port 1:</span>
+                            <span class="port-values">
+                                <span id="port1DailyEnergy">0 kWh</span> | 
+                                <span id="port1DailyCost">0 BDT</span>
+                            </span>
+                        </div>
+                        <div class="port-item">
+                            <span class="port-label">Port 2:</span>
+                            <span class="port-values">
+                                <span id="port2DailyEnergy">0 kWh</span> | 
+                                <span id="port2DailyCost">0 BDT</span>
+                            </span>
+                        </div>
+                        <div class="port-item">
+                            <span class="port-label">Port 3:</span>
+                            <span class="port-values">
+                                <span id="port3DailyEnergy">0 kWh</span> | 
+                                <span id="port3DailyCost">0 BDT</span>
+                            </span>
+                        </div>
+                        <div class="port-item">
+                            <span class="port-label">Port 4:</span>
+                            <span class="port-values">
+                                <span id="port4DailyEnergy">0 kWh</span> | 
+                                <span id="port4DailyCost">0 BDT</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Port-wise Monthly Consumption -->
+                <div class="billing-card ports-monthly-card">
+                    <h3><i class="fas fa-chart-line"></i> Monthly Consumption</h3>
+                    <div class="port-consumption">
+                        <div class="port-item">
+                            <span class="port-label">Port 1:</span>
+                            <span class="port-values">
+                                <span id="port1MonthlyEnergy">0 kWh</span> | 
+                                <span id="port1MonthlyCost">0 BDT</span>
+                            </span>
+                        </div>
+                        <div class="port-item">
+                            <span class="port-label">Port 2:</span>
+                            <span class="port-values">
+                                <span id="port2MonthlyEnergy">0 kWh</span> | 
+                                <span id="port2MonthlyCost">0 BDT</span>
+                            </span>
+                        </div>
+                        <div class="port-item">
+                            <span class="port-label">Port 3:</span>
+                            <span class="port-values">
+                                <span id="port3MonthlyEnergy">0 kWh</span> | 
+                                <span id="port3MonthlyCost">0 BDT</span>
+                            </span>
+                        </div>
+                        <div class="port-item">
+                            <span class="port-label">Port 4:</span>
+                            <span class="port-values">
+                                <span id="port4MonthlyEnergy">0 kWh</span> | 
+                                <span id="port4MonthlyCost">0 BDT</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Alerts and Notifications Section -->
+        <section class="alerts-section">
+            <h2><i class="fas fa-exclamation-triangle"></i> Alerts & Notifications</h2>
+            <div class="alerts-container" id="alertsContainer">
+                <div class="no-alerts">No active alerts</div>
+            </div>
+        </section>
+
+        <!-- Optimization Suggestions Section -->
+        <section class="suggestions-section">
+            <h2><i class="fas fa-lightbulb"></i> Cost Optimization Suggestions</h2>
+            <div class="suggestions-container" id="suggestionsContainer">
+                <div class="no-suggestions">No suggestions available</div>
+            </div>
+        </section>
+
+        <!-- Controls Section -->
+        <section class="controls-section">
+            <h2><i class="fas fa-cogs"></i> Controls</h2>
+            <div class="controls-grid">
+                <button class="control-btn export-btn" onclick="exportCSV()">
+                    <i class="fas fa-file-csv"></i> Export CSV
+                </button>
+                <button class="control-btn export-btn" onclick="exportPDF()">
+                    <i class="fas fa-file-pdf"></i> Export PDF
+                </button>
+                <button class="control-btn reset-btn" onclick="resetDailyData()">
+                    <i class="fas fa-refresh"></i> Reset Daily
+                </button>
+                <button class="control-btn settings-btn" onclick="openSettings()">
+                    <i class="fas fa-cog"></i> Settings
+                </button>
+            </div>
+        </section>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Settings</h3>
+                <span class="close" onclick="closeSettings()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="setting-item">
+                    <label for="electricityRateInput">Electricity Rate (BDT/kWh):</label>
+                    <input type="number" id="electricityRateInput" step="0.1" min="0" value="8">
+                    <button onclick="updateElectricityRate()">Update</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="js/dashboard.js"></script>
+</body>
+</html>
