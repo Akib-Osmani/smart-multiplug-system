@@ -55,7 +55,7 @@ const char* ssid = "YOUR_WIFI_SSID";
 const char* password = "YOUR_WIFI_PASSWORD";
 
 // Server Configuration  
-const char* serverURL = "https://your-app.railway.app/api/data";
+const char* serverURL = "https://smart-multiplug-system-production.up.railway.app/api/data";
 
 // Pin Definitions
 const int voltagePins[4] = {A0, A1, A2, A3};  // Voltage sensor pins
@@ -201,7 +201,7 @@ const char* password = "YOUR_WIFI_PASSWORD";
 ### Step 3: Server URL Configuration
 ```cpp
 // Replace with your Railway deployment URL
-const char* serverURL = "https://your-app.railway.app/api/data";
+const char* serverURL = "https://smart-multiplug-system-production.up.railway.app/api/data";
 ```
 
 ### Step 4: Sensor Calibration
@@ -251,7 +251,7 @@ while(retryCount < maxRetries) {
 4. Confirm HTTP response codes (200 = success)
 
 ### Step 2: Dashboard Verification
-1. Open your Railway dashboard URL
+1. Open https://smart-multiplug-system-production.up.railway.app
 2. Check if real-time data updates
 3. Verify port-specific readings
 4. Test alert generation for high usage

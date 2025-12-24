@@ -35,76 +35,80 @@ const db = new sqlite3.Database('./multiplug.db');
 
 // Database schema creation
 function initializeDatabase() {
-  // Real-time data table
-  db.run(`CREATE TABLE IF NOT EXISTS realtime_data (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    port INTEGER NOT NULL,
-    voltage REAL NOT NULL,
-    current REAL NOT NULL,
-    power REAL NOT NULL,
-    status TEXT NOT NULL,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
+  return new Promise((resolve) => {
+    // Real-time data table
+    db.run(`CREATE TABLE IF NOT EXISTS realtime_data (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      port INTEGER NOT NULL,
+      voltage REAL NOT NULL,
+      current REAL NOT NULL,
+      power REAL NOT NULL,
+      status TEXT NOT NULL,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
 
-  // Daily consumption table
-  db.run(`CREATE TABLE IF NOT EXISTS daily_consumption (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    date DATE NOT NULL,
-    port INTEGER NOT NULL,
-    energy_kwh REAL DEFAULT 0,
-    cost_bdt REAL DEFAULT 0,
-    runtime_minutes INTEGER DEFAULT 0,
-    peak_usage REAL DEFAULT 0,
-    UNIQUE(date, port)
-  )`);
+    // Daily consumption table
+    db.run(`CREATE TABLE IF NOT EXISTS daily_consumption (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date DATE NOT NULL,
+      port INTEGER NOT NULL,
+      energy_kwh REAL DEFAULT 0,
+      cost_bdt REAL DEFAULT 0,
+      runtime_minutes INTEGER DEFAULT 0,
+      peak_usage REAL DEFAULT 0,
+      UNIQUE(date, port)
+    )`);
 
-  // Monthly consumption table
-  db.run(`CREATE TABLE IF NOT EXISTS monthly_consumption (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    year INTEGER NOT NULL,
-    month INTEGER NOT NULL,
-    port INTEGER NOT NULL,
-    energy_kwh REAL DEFAULT 0,
-    cost_bdt REAL DEFAULT 0,
-    UNIQUE(year, month, port)
-  )`);
+    // Monthly consumption table
+    db.run(`CREATE TABLE IF NOT EXISTS monthly_consumption (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      year INTEGER NOT NULL,
+      month INTEGER NOT NULL,
+      port INTEGER NOT NULL,
+      energy_kwh REAL DEFAULT 0,
+      cost_bdt REAL DEFAULT 0,
+      UNIQUE(year, month, port)
+    )`);
 
-  // Settings table
-  db.run(`CREATE TABLE IF NOT EXISTS settings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    key TEXT UNIQUE NOT NULL,
-    value TEXT NOT NULL
-  )`);
+    // Settings table
+    db.run(`CREATE TABLE IF NOT EXISTS settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      key TEXT UNIQUE NOT NULL,
+      value TEXT NOT NULL
+    )`);
 
-  // Alerts table
-  db.run(`CREATE TABLE IF NOT EXISTS alerts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    type TEXT NOT NULL,
-    message TEXT NOT NULL,
-    port INTEGER,
-    severity TEXT NOT NULL,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    acknowledged BOOLEAN DEFAULT FALSE
-  )`);
+    // Alerts table
+    db.run(`CREATE TABLE IF NOT EXISTS alerts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      message TEXT NOT NULL,
+      port INTEGER,
+      severity TEXT NOT NULL,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+      acknowledged BOOLEAN DEFAULT FALSE
+    )`);
 
-  // Peak hours usage table
-  db.run(`CREATE TABLE IF NOT EXISTS peak_usage (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    date DATE NOT NULL,
-    port INTEGER NOT NULL,
-    peak_power REAL NOT NULL,
-    peak_time TIME NOT NULL,
-    duration_minutes INTEGER DEFAULT 0,
-    UNIQUE(date, port)
-  )`);
+    // Peak hours usage table
+    db.run(`CREATE TABLE IF NOT EXISTS peak_usage (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date DATE NOT NULL,
+      port INTEGER NOT NULL,
+      peak_power REAL NOT NULL,
+      peak_time TIME NOT NULL,
+      duration_minutes INTEGER DEFAULT 0,
+      UNIQUE(date, port)
+    )`);
 
-  // Initialize default settings
-  db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES 
-    ('electricity_rate_bdt', '${DEFAULT_ELECTRICITY_RATE}'),
-    ('peak_start_hour', '${PEAK_HOURS.start}'),
-    ('peak_end_hour', '${PEAK_HOURS.end}'),
-    ('high_usage_threshold', '${HIGH_USAGE_THRESHOLD}'),
-    ('daily_cost_alert', '${DAILY_COST_ALERT_THRESHOLD}')`);
+    // Initialize default settings
+    db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES 
+      ('electricity_rate_bdt', '${DEFAULT_ELECTRICITY_RATE}'),
+      ('peak_start_hour', '${PEAK_HOURS.start}'),
+      ('peak_end_hour', '${PEAK_HOURS.end}'),
+      ('high_usage_threshold', '${HIGH_USAGE_THRESHOLD}'),
+      ('daily_cost_alert', '${DAILY_COST_ALERT_THRESHOLD}')`, () => {
+      resolve();
+    });
+  });
 }
 
 // Utility functions
@@ -682,10 +686,10 @@ cron.schedule('0 0 * * *', () => {
 });
 
 // Server startup
-initializeDatabase();
-
-server.listen(PORT, () => {
-  console.log(`Smart Multiplug System running on port ${PORT}`);
-  console.log(`Features: Real-time monitoring, Alerts, Peak detection, Export (CSV/PDF)`);
-  console.log(`Sample data generation: Every ${UPDATE_INTERVAL/1000} seconds`);
+initializeDatabase().then(() => {
+  server.listen(PORT, () => {
+    console.log(`Smart Multiplug System running on port ${PORT}`);
+    console.log(`Features: Real-time monitoring, Alerts, Peak detection, Export (CSV/PDF)`);
+    console.log(`Sample data generation: Every ${UPDATE_INTERVAL/1000} seconds`);
+  });
 });
