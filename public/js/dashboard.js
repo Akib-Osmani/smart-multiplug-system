@@ -527,3 +527,37 @@ window.addEventListener('offline', () => {
         dashboard.showNotification('Connection lost', 'warning');
     }
 });
+
+// Toggle port function
+async function togglePort(port) {
+    try {
+        const response = await fetch('/api/toggle', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ port })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            
+            // Update button appearance
+            const btn = document.getElementById(`toggle${port}`);
+            if (data.state === 'ON') {
+                btn.innerHTML = '<i class="fas fa-power-off"></i> Turn OFF';
+                btn.classList.add('on');
+            } else {
+                btn.innerHTML = '<i class="fas fa-power-off"></i> Turn ON';
+                btn.classList.remove('on');
+            }
+            
+            dashboard.showNotification(`Port ${port} turned ${data.state}`, 'success');
+        } else {
+            throw new Error('Failed to toggle port');
+        }
+    } catch (error) {
+        console.error('Error toggling port:', error);
+        dashboard.showNotification('Failed to toggle port', 'error');
+    }
+}

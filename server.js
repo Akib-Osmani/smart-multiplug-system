@@ -44,6 +44,7 @@ function initializeDatabase() {
       current REAL NOT NULL,
       power REAL NOT NULL,
       status TEXT NOT NULL,
+      relay_state TEXT DEFAULT 'OFF',
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
@@ -642,6 +643,54 @@ app.post('/api/reset-daily', (req, res) => {
     io.emit('dataUpdate', updatedData);
     res.json({ success: true });
   });
+});
+
+// Toggle relay endpoint
+app.post('/api/toggle', async (req, res) => {
+  try {
+    const { port } = req.body;
+    
+    // Get current relay state
+    db.get("SELECT relay_state FROM realtime_data WHERE port = ?", [port], (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+      
+      const currentState = row ? row.relay_state : 'OFF';
+      const newState = currentState === 'ON' ? 'OFF' : 'ON';
+      
+      // Update relay state in database
+      db.run(`UPDATE realtime_data SET relay_state = ? WHERE port = ?`, 
+             [newState, port], (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+        
+        // Broadcast update to all clients
+        io.emit('relayUpdate', { port, state: newState });
+        
+        res.json({ success: true, port, state: newState });
+      });
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get relay status for ESP8266
+app.get('/api/relay-status', (req, res) => {
+    db.all(`SELECT port, relay_state FROM realtime_data WHERE port <= 2 ORDER BY port`, (err, rows) => {
+        if (err) {
+            return res.status(500).json({ error: 'Database error' });
+        }
+        
+        const relays = [];
+        for(let i = 1; i <= 2; i++) {
+            const row = rows.find(r => r.port === i);
+            relays.push({
+                port: i,
+                state: row ? row.relay_state === 'ON' : false
+            });
+        }
+        
+        res.json({ relays });
+    });
 });
 
 // WebSocket connection handling

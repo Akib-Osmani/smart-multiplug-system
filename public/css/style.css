@@ -587,3 +587,40 @@ section h2 i {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+/* Port Controls */
+.port-controls {
+    margin-top: 1rem;
+    text-align: center;
+}
+
+.toggle-btn {
+    padding: 0.8rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: linear-gradient(145deg, #dc3545, #c82333);
+    color: white;
+    width: 100%;
+    justify-content: center;
+}
+
+.toggle-btn:hover {
+    background: linear-gradient(145deg, #c82333, #bd2130);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+}
+
+.toggle-btn.on {
+    background: linear-gradient(145deg, #28a745, #20c997);
+}
+
+.toggle-btn.on:hover {
+    background: linear-gradient(145deg, #218838, #1ea080);
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+}
