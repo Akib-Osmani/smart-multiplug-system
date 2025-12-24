@@ -18,7 +18,7 @@ const io = socketIo(server, {
 });
 
 // Configuration constants
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const DEFAULT_ELECTRICITY_RATE = 8.0; // BDT per kWh
 const UPDATE_INTERVAL = 60000; // 1 minute in milliseconds
 const PEAK_HOURS = { start: 18, end: 23 }; // 6 PM to 11 PM
