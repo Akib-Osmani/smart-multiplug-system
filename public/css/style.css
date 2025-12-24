@@ -657,3 +657,17 @@ section h2 i {
     transform: none;
     box-shadow: none;
 }
+
+/* Disabled Port Item Styles */
+.port-item.disabled {
+    opacity: 0.5;
+    background: #f1f3f4;
+}
+
+.port-item.disabled .port-label {
+    color: #9aa0a6;
+}
+
+.port-item.disabled .port-values {
+    color: #9aa0a6;
+}
