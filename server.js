@@ -31,11 +31,17 @@ app.use(express.json());
 app.use(express.static('public'));
 
 // Database initialization
-const db = new sqlite3.Database('./multiplug.db');
+const db = new sqlite3.Database('./multiplug.db', (err) => {
+  if (err) {
+    console.error('Error opening database:', err.message);
+    process.exit(1);
+  }
+  console.log('Connected to SQLite database');
+});
 
 // Database schema creation
 function initializeDatabase() {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     // Real-time data table
     db.run(`CREATE TABLE IF NOT EXISTS realtime_data (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,76 +52,95 @@ function initializeDatabase() {
       status TEXT NOT NULL,
       relay_state TEXT DEFAULT 'OFF',
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
+    )`, (err) => {
+      if (err) return reject(err);
+      
+      // Daily consumption table
+      db.run(`CREATE TABLE IF NOT EXISTS daily_consumption (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date DATE NOT NULL,
+        port INTEGER NOT NULL,
+        energy_kwh REAL DEFAULT 0,
+        cost_bdt REAL DEFAULT 0,
+        runtime_minutes INTEGER DEFAULT 0,
+        peak_usage REAL DEFAULT 0,
+        UNIQUE(date, port)
+      )`, (err) => {
+        if (err) return reject(err);
+        
+        // Continue with other tables...
+        createRemainingTables(resolve, reject);
+      });
+    });
+  });
+}
 
-    // Daily consumption table
-    db.run(`CREATE TABLE IF NOT EXISTS daily_consumption (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      date DATE NOT NULL,
-      port INTEGER NOT NULL,
-      energy_kwh REAL DEFAULT 0,
-      cost_bdt REAL DEFAULT 0,
-      runtime_minutes INTEGER DEFAULT 0,
-      peak_usage REAL DEFAULT 0,
-      UNIQUE(date, port)
-    )`);
-
-    // Monthly consumption table
-    db.run(`CREATE TABLE IF NOT EXISTS monthly_consumption (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      year INTEGER NOT NULL,
-      month INTEGER NOT NULL,
-      port INTEGER NOT NULL,
-      energy_kwh REAL DEFAULT 0,
-      cost_bdt REAL DEFAULT 0,
-      UNIQUE(year, month, port)
-    )`);
-
+function createRemainingTables(resolve, reject) {
+  // Monthly consumption table
+  db.run(`CREATE TABLE IF NOT EXISTS monthly_consumption (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    year INTEGER NOT NULL,
+    month INTEGER NOT NULL,
+    port INTEGER NOT NULL,
+    energy_kwh REAL DEFAULT 0,
+    cost_bdt REAL DEFAULT 0,
+    UNIQUE(year, month, port)
+  )`, (err) => {
+    if (err) return reject(err);
+    
     // Settings table
     db.run(`CREATE TABLE IF NOT EXISTS settings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       key TEXT UNIQUE NOT NULL,
       value TEXT NOT NULL
-    )`);
-
-    // Alerts table
-    db.run(`CREATE TABLE IF NOT EXISTS alerts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      type TEXT NOT NULL,
-      message TEXT NOT NULL,
-      port INTEGER,
-      severity TEXT NOT NULL,
-      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-      acknowledged BOOLEAN DEFAULT FALSE
-    )`);
-
-    // Peak hours usage table
-    db.run(`CREATE TABLE IF NOT EXISTS peak_usage (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      date DATE NOT NULL,
-      port INTEGER NOT NULL,
-      peak_power REAL NOT NULL,
-      peak_time TIME NOT NULL,
-      duration_minutes INTEGER DEFAULT 0,
-      UNIQUE(date, port)
-    )`);
-
-    // Initialize default settings
-    db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES 
-      ('electricity_rate_bdt', '${DEFAULT_ELECTRICITY_RATE}'),
-      ('peak_start_hour', '${PEAK_HOURS.start}'),
-      ('peak_end_hour', '${PEAK_HOURS.end}'),
-      ('high_usage_threshold', '${HIGH_USAGE_THRESHOLD}'),
-      ('daily_cost_alert', '${DAILY_COST_ALERT_THRESHOLD}')`, () => {
-      resolve();
+    )`, (err) => {
+      if (err) return reject(err);
+      
+      // Alerts table
+      db.run(`CREATE TABLE IF NOT EXISTS alerts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type TEXT NOT NULL,
+        message TEXT NOT NULL,
+        port INTEGER,
+        severity TEXT NOT NULL,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        acknowledged BOOLEAN DEFAULT FALSE
+      )`, (err) => {
+        if (err) return reject(err);
+        
+        // Peak hours usage table
+        db.run(`CREATE TABLE IF NOT EXISTS peak_usage (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          date DATE NOT NULL,
+          port INTEGER NOT NULL,
+          peak_power REAL NOT NULL,
+          peak_time TIME NOT NULL,
+          duration_minutes INTEGER DEFAULT 0,
+          UNIQUE(date, port)
+        )`, (err) => {
+          if (err) return reject(err);
+          
+          // Initialize default settings
+          db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES 
+            ('electricity_rate_bdt', '${DEFAULT_ELECTRICITY_RATE}'),
+            ('peak_start_hour', '${PEAK_HOURS.start}'),
+            ('peak_end_hour', '${PEAK_HOURS.end}'),
+            ('high_usage_threshold', '${HIGH_USAGE_THRESHOLD}'),
+            ('daily_cost_alert', '${DAILY_COST_ALERT_THRESHOLD}')`, (err) => {
+            if (err) return reject(err);
+            resolve();
+          });
+        });
+      });
     });
   });
 }
 
 // Utility functions
 function getCurrentElectricityRate() {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     db.get("SELECT value FROM settings WHERE key = 'electricity_rate_bdt'", (err, row) => {
+      if (err) return reject(err);
       resolve(row ? parseFloat(row.value) : DEFAULT_ELECTRICITY_RATE);
     });
   });
@@ -179,13 +204,19 @@ async function updateDailyConsumption(port, powerWatts) {
         db.run(`UPDATE daily_consumption 
                 SET energy_kwh = ?, cost_bdt = ?, runtime_minutes = ?, peak_usage = ?
                 WHERE date = ? AND port = ?`,
-                [newEnergy, newCost, newRuntime, newPeakUsage, today, port], resolve);
+                [newEnergy, newCost, newRuntime, newPeakUsage, today, port], (err) => {
+          if (err) return reject(err);
+          resolve();
+        });
       } else {
         // Create new record
         db.run(`INSERT INTO daily_consumption 
                 (date, port, energy_kwh, cost_bdt, runtime_minutes, peak_usage)
                 VALUES (?, ?, ?, ?, ?, ?)`,
-                [today, port, energyKwh, costBdt, powerWatts > 0 ? 1 : 0, powerWatts], resolve);
+                [today, port, energyKwh, costBdt, powerWatts > 0 ? 1 : 0, powerWatts], (err) => {
+          if (err) return reject(err);
+          resolve();
+        });
       }
     });
   });
@@ -205,12 +236,18 @@ async function updateMonthlyConsumption(port, energyKwh, costBdt) {
         db.run(`UPDATE monthly_consumption 
                 SET energy_kwh = energy_kwh + ?, cost_bdt = cost_bdt + ?
                 WHERE year = ? AND month = ? AND port = ?`,
-                [energyKwh, costBdt, year, month, port], resolve);
+                [energyKwh, costBdt, year, month, port], (err) => {
+          if (err) return reject(err);
+          resolve();
+        });
       } else {
         // Create new record
         db.run(`INSERT INTO monthly_consumption (year, month, port, energy_kwh, cost_bdt)
                 VALUES (?, ?, ?, ?, ?)`,
-                [year, month, port, energyKwh, costBdt], resolve);
+                [year, month, port, energyKwh, costBdt], (err) => {
+          if (err) return reject(err);
+          resolve();
+        });
       }
     });
   });
@@ -255,7 +292,9 @@ async function checkAndCreateAlerts(port, power, dailyCost) {
   for (const alert of alerts) {
     db.run(`INSERT INTO alerts (type, message, port, severity) 
             VALUES (?, ?, ?, ?)`,
-            [alert.type, alert.message, alert.port, alert.severity]);
+            [alert.type, alert.message, alert.port, alert.severity], (err) => {
+      if (err) console.error('Error inserting alert:', err);
+    });
   }
   
   return alerts;
@@ -267,7 +306,7 @@ async function updatePeakUsage(port, power) {
   const currentTime = moment().format('HH:mm:ss');
   const currentHour = moment().hour();
   
-  if (!isPeakHour(currentHour)) return;
+  if (!isPeakHour(currentHour)) return Promise.resolve();
   
   return new Promise((resolve, reject) => {
     db.get("SELECT * FROM peak_usage WHERE date = ? AND port = ?", 
@@ -280,19 +319,28 @@ async function updatePeakUsage(port, power) {
           db.run(`UPDATE peak_usage 
                   SET peak_power = ?, peak_time = ?, duration_minutes = duration_minutes + 1
                   WHERE date = ? AND port = ?`,
-                  [power, currentTime, today, port], resolve);
+                  [power, currentTime, today, port], (err) => {
+            if (err) return reject(err);
+            resolve();
+          });
         } else {
           // Just increment duration
           db.run(`UPDATE peak_usage 
                   SET duration_minutes = duration_minutes + 1
                   WHERE date = ? AND port = ?`,
-                  [today, port], resolve);
+                  [today, port], (err) => {
+            if (err) return reject(err);
+            resolve();
+          });
         }
       } else {
         // Create new peak usage record
         db.run(`INSERT INTO peak_usage (date, port, peak_power, peak_time, duration_minutes)
                 VALUES (?, ?, ?, ?, ?)`,
-                [today, port, power, currentTime, 1], resolve);
+                [today, port, power, currentTime, 1], (err) => {
+          if (err) return reject(err);
+          resolve();
+        });
       }
     });
   });
@@ -305,9 +353,16 @@ function generateOptimizationSuggestions(dashboardData) {
   
   // High consumption device suggestions
   Object.keys(realtime).forEach(portKey => {
+    if (portKey === 'masterEnabled') return; // Skip master control property
+    
     const port = portKey.replace('port', '');
-    const power = realtime[portKey].power;
-    const dailyEnergy = today[portKey].energy;
+    const realtimeData = realtime[portKey];
+    const todayData = today[portKey];
+    
+    if (!realtimeData || !todayData) return; // Skip if data is missing
+    
+    const power = realtimeData.power || 0;
+    const dailyEnergy = todayData.energy || 0;
     
     if (power > 800) {
       suggestions.push({
@@ -332,8 +387,14 @@ function generateOptimizationSuggestions(dashboardData) {
   const currentHour = moment().hour();
   if (isPeakHour(currentHour)) {
     Object.keys(realtime).forEach(portKey => {
+      if (portKey === 'masterEnabled') return; // Skip master control property
+      
       const port = portKey.replace('port', '');
-      const power = realtime[portKey].power;
+      const realtimeData = realtime[portKey];
+      
+      if (!realtimeData) return; // Skip if data is missing
+      
+      const power = realtimeData.power || 0;
       
       if (power > 300) {
         suggestions.push({
@@ -362,8 +423,13 @@ async function exportToCSV(startDate, endDate) {
     db.all(query, [startDate, endDate], (err, rows) => {
       if (err) return reject(err);
       
+      // Generate unique filename with timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `consumption_data_${timestamp}.csv`;
+      const filePath = `./exports/${filename}`;
+      
       const csvWriter = createCsvWriter({
-        path: './exports/consumption_data.csv',
+        path: filePath,
         header: [
           { id: 'date', title: 'Date' },
           { id: 'port', title: 'Port' },
@@ -376,11 +442,11 @@ async function exportToCSV(startDate, endDate) {
       
       // Ensure exports directory exists
       if (!fs.existsSync('./exports')) {
-        fs.mkdirSync('./exports');
+        fs.mkdirSync('./exports', { recursive: true });
       }
       
       csvWriter.writeRecords(rows)
-        .then(() => resolve('./exports/consumption_data.csv'))
+        .then(() => resolve(filePath))
         .catch(reject);
     });
   });
@@ -452,8 +518,8 @@ async function getDashboardData() {
           
           // Get monthly data
           db.all("SELECT * FROM monthly_consumption WHERE year = ? AND month = ?", 
-               [currentYear, currentMonth], (err, monthlyRows) => {
-          if (err) return reject(err);
+                 [currentYear, currentMonth], (err, monthlyRows) => {
+            if (err) return reject(err);
           
           const monthlyData = {};
           let monthTotalEnergy = 0, monthTotalCost = 0;
@@ -649,7 +715,9 @@ app.post('/api/master-control', async (req, res) => {
       if (!enabled) {
         for (let port = 1; port <= 2; port++) {
           db.run(`INSERT OR REPLACE INTO realtime_data (port, voltage, current, power, status, relay_state) 
-                  VALUES (?, 0, 0, 0, 'offline', 'OFF')`, [port]);
+                  VALUES (?, 0, 0, 0, 'offline', 'OFF')`, [port], (err) => {
+            if (err) console.error('Database error:', err);
+          });
         }
       }
       
