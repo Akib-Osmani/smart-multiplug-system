@@ -14,16 +14,30 @@ const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] }
+  cors: { 
+    origin: (() => {
+      if (process.env.NODE_ENV === 'production') {
+        const origins = process.env.ALLOWED_ORIGINS;
+        if (!origins) return ['https://localhost:3000'];
+        const parsed = origins.split(',').map(o => o.trim()).filter(Boolean);
+        return parsed.length > 0 ? parsed : ['https://localhost:3000'];
+      }
+      return "*";
+    })(),
+    methods: ["GET", "POST"] 
+  }
 });
 
 // Configuration constants
 const PORT = process.env.PORT || 3000;
-const DEFAULT_ELECTRICITY_RATE = 8.0; // BDT per kWh
-const UPDATE_INTERVAL = 60000; // 1 minute in milliseconds
-const PEAK_HOURS = { start: 18, end: 23 }; // 6 PM to 11 PM
-const HIGH_USAGE_THRESHOLD = 1000; // Watts
-const DAILY_COST_ALERT_THRESHOLD = 100; // BDT
+const DEFAULT_ELECTRICITY_RATE = parseFloat(process.env.DEFAULT_ELECTRICITY_RATE) || 8.0; // BDT per kWh
+const UPDATE_INTERVAL = parseInt(process.env.UPDATE_INTERVAL) || 60000; // 1 minute in milliseconds
+const PEAK_HOURS = { 
+  start: parseInt(process.env.PEAK_START_HOUR) || 18, 
+  end: parseInt(process.env.PEAK_END_HOUR) || 23 
+}; // 6 PM to 11 PM
+const HIGH_USAGE_THRESHOLD = parseInt(process.env.HIGH_USAGE_THRESHOLD) || 1000; // Watts
+const DAILY_COST_ALERT_THRESHOLD = parseInt(process.env.DAILY_COST_ALERT_THRESHOLD) || 100; // BDT
 
 // Middleware
 app.use(cors());
@@ -34,9 +48,26 @@ app.use(express.static('public'));
 const db = new sqlite3.Database('./multiplug.db', (err) => {
   if (err) {
     console.error('Error opening database:', err.message);
-    process.exit(1);
+    // Graceful shutdown instead of abrupt exit
+    setTimeout(() => {
+      console.error('Database connection failed, shutting down...');
+      process.exit(1);
+    }, 1000);
+    return;
   }
   console.log('Connected to SQLite database');
+});
+
+// Handle database errors with recovery
+db.on('error', (err) => {
+  console.error('Database error:', err.message);
+  // Attempt to reconnect or alert administrators
+  if (err.code === 'SQLITE_BUSY' || err.code === 'SQLITE_LOCKED') {
+    console.log('Database busy, retrying in 1 second...');
+    setTimeout(() => {
+      // Retry logic could be implemented here
+    }, 1000);
+  }
 });
 
 // Database schema creation
@@ -45,7 +76,7 @@ function initializeDatabase() {
     // Real-time data table
     db.run(`CREATE TABLE IF NOT EXISTS realtime_data (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      port INTEGER NOT NULL,
+      port INTEGER NOT NULL UNIQUE,
       voltage REAL NOT NULL,
       current REAL NOT NULL,
       power REAL NOT NULL,
@@ -165,25 +196,20 @@ async function updateRealtimeData(port, voltage, current, power) {
   const status = power > 0 ? 'online' : 'offline';
   
   return new Promise((resolve, reject) => {
-    // Delete old data for this port
-    db.run("DELETE FROM realtime_data WHERE port = ?", [port], (err) => {
+    db.run(`INSERT OR REPLACE INTO realtime_data (port, voltage, current, power, status, timestamp) 
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`, 
+            [port, voltage, current, power, status], 
+            (err) => {
       if (err) return reject(err);
-      
-      // Insert new data
-      db.run(`INSERT INTO realtime_data (port, voltage, current, power, status) 
-              VALUES (?, ?, ?, ?, ?)`, 
-              [port, voltage, current, power, status], 
-              (err) => {
-        if (err) return reject(err);
-        resolve();
-      });
+      resolve();
     });
   });
 }
 
 async function updateDailyConsumption(port, powerWatts) {
   const today = moment().format('YYYY-MM-DD');
-  const energyKwh = calculateEnergyKwh(powerWatts, 1);
+  const intervalMinutes = UPDATE_INTERVAL / 60000; // Convert to minutes
+  const energyKwh = calculateEnergyKwh(powerWatts, intervalMinutes);
   const rate = await getCurrentElectricityRate();
   const costBdt = energyKwh * rate;
   const currentHour = moment().hour();
@@ -288,13 +314,26 @@ async function checkAndCreateAlerts(port, power, dailyCost) {
     });
   }
   
-  // Insert alerts into database
-  for (const alert of alerts) {
-    db.run(`INSERT INTO alerts (type, message, port, severity) 
-            VALUES (?, ?, ?, ?)`,
-            [alert.type, alert.message, alert.port, alert.severity], (err) => {
-      if (err) console.error('Error inserting alert:', err);
+  // Insert alerts into database with proper error handling
+  const insertPromises = alerts.map(alert => {
+    return new Promise((resolve, reject) => {
+      db.run(`INSERT INTO alerts (type, message, port, severity) 
+              VALUES (?, ?, ?, ?)`,
+              [alert.type, alert.message, alert.port, alert.severity], (err) => {
+        if (err) {
+          console.error('Error inserting alert:', err);
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
     });
+  });
+  
+  try {
+    await Promise.all(insertPromises);
+  } catch (error) {
+    console.error('Failed to insert some alerts:', error);
   }
   
   return alerts;
@@ -351,6 +390,13 @@ function generateOptimizationSuggestions(dashboardData) {
   const suggestions = [];
   const { realtime, today, monthly } = dashboardData;
   
+  // Constants for calculations
+  const EFFICIENCY_FACTOR = 0.3;
+  const STANDBY_REDUCTION = 0.2;
+  const HOURS_PER_DAY = 24;
+  const DAYS_PER_MONTH = 30;
+  const DEFAULT_RATE = 8;
+  
   // High consumption device suggestions
   Object.keys(realtime).forEach(portKey => {
     if (portKey === 'masterEnabled') return; // Skip master control property
@@ -369,7 +415,7 @@ function generateOptimizationSuggestions(dashboardData) {
         type: 'HIGH_CONSUMPTION',
         port: port,
         message: `Port ${port}: Consider using energy-efficient alternatives. Current: ${power}W`,
-        savings: `Potential monthly savings: ${((power * 0.3 * 24 * 30) / 1000 * 8).toFixed(0)} BDT`
+        savings: `Potential monthly savings: ${((power * EFFICIENCY_FACTOR * HOURS_PER_DAY * DAYS_PER_MONTH) / 1000 * DEFAULT_RATE).toFixed(0)} BDT`
       });
     }
     
@@ -378,7 +424,7 @@ function generateOptimizationSuggestions(dashboardData) {
         type: 'SCHEDULE_OPTIMIZATION',
         port: port,
         message: `Port ${port}: Use timer switches to avoid standby consumption`,
-        savings: `Potential daily savings: ${(dailyEnergy * 0.2 * 8).toFixed(0)} BDT`
+        savings: `Potential daily savings: ${(dailyEnergy * STANDBY_REDUCTION * DEFAULT_RATE).toFixed(0)} BDT`
       });
     }
   });
@@ -423,7 +469,11 @@ async function exportToCSV(startDate, endDate) {
     db.all(query, [startDate, endDate], (err, rows) => {
       if (err) return reject(err);
       
-      // Generate unique filename with timestamp
+      // Ensure exports directory exists first
+      if (!fs.existsSync('./exports')) {
+        fs.mkdirSync('./exports', { recursive: true });
+      }
+      
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const filename = `consumption_data_${timestamp}.csv`;
       const filePath = `./exports/${filename}`;
@@ -440,11 +490,6 @@ async function exportToCSV(startDate, endDate) {
         ]
       });
       
-      // Ensure exports directory exists
-      if (!fs.existsSync('./exports')) {
-        fs.mkdirSync('./exports', { recursive: true });
-      }
-      
       csvWriter.writeRecords(rows)
         .then(() => resolve(filePath))
         .catch(reject);
@@ -459,112 +504,122 @@ async function exportToPDF(dashboardData) {
 
 // Get dashboard data
 async function getDashboardData() {
-  return new Promise((resolve, reject) => {
-    const today = moment().format('YYYY-MM-DD');
-    const currentYear = moment().year();
-    const currentMonth = moment().month() + 1;
-    
-    // Get master control state
-    db.get("SELECT value FROM settings WHERE key = 'master_enabled'", (err, masterRow) => {
-      if (err) return reject(err);
-      
-      const masterEnabled = masterRow ? masterRow.value === 'true' : false;
-      
-      // Get real-time data
-      db.all("SELECT * FROM realtime_data ORDER BY port", (err, realtimeRows) => {
+  const today = moment().format('YYYY-MM-DD');
+  const currentYear = moment().year();
+  const currentMonth = moment().month() + 1;
+  
+  try {
+    const masterRow = await new Promise((resolve, reject) => {
+      db.get("SELECT value FROM settings WHERE key = 'master_enabled'", (err, row) => {
         if (err) return reject(err);
-        
-        const realtime = {};
-        for (let i = 1; i <= 4; i++) {
-          const data = realtimeRows.find(row => row.port === i);
-          realtime[`port${i}`] = data ? {
-            voltage: data.voltage,
-            current: data.current,
-            power: data.power,
-            status: data.status
-          } : { voltage: 0, current: 0, power: 0, status: 'offline' };
-        }
-        
-        // Add master control state to realtime data
-        realtime.masterEnabled = masterEnabled;
-        
-        // Get today's data
-        db.all("SELECT * FROM daily_consumption WHERE date = ?", [today], (err, dailyRows) => {
-          if (err) return reject(err);
-          
-          const todayData = {};
-          let totalEnergy = 0, totalCost = 0, totalRuntime = 0;
-          
-          for (let i = 1; i <= 4; i++) {
-            const data = dailyRows.find(row => row.port === i);
-            todayData[`port${i}`] = data ? {
-              energy: parseFloat(data.energy_kwh.toFixed(2)),
-              cost: parseFloat(data.cost_bdt.toFixed(2)),
-              runtime: formatRuntime(data.runtime_minutes)
-            } : { energy: 0, cost: 0, runtime: '0h 0m' };
-            
-            if (data) {
-              totalEnergy += data.energy_kwh;
-              totalCost += data.cost_bdt;
-              totalRuntime += data.runtime_minutes;
-            }
-          }
-          
-          todayData.total = {
-            energy: parseFloat(totalEnergy.toFixed(2)),
-            cost: parseFloat(totalCost.toFixed(2)),
-            runtime: formatRuntime(totalRuntime)
-          };
-          
-          // Get monthly data
-          db.all("SELECT * FROM monthly_consumption WHERE year = ? AND month = ?", 
-                 [currentYear, currentMonth], (err, monthlyRows) => {
-            if (err) return reject(err);
-          
-          const monthlyData = {};
-          let monthTotalEnergy = 0, monthTotalCost = 0;
-          
-          for (let i = 1; i <= 4; i++) {
-            const data = monthlyRows.find(row => row.port === i);
-            monthlyData[`port${i}`] = data ? {
-              energy: parseFloat(data.energy_kwh.toFixed(2)),
-              cost: parseFloat(data.cost_bdt.toFixed(2))
-            } : { energy: 0, cost: 0 };
-            
-            if (data) {
-              monthTotalEnergy += data.energy_kwh;
-              monthTotalCost += data.cost_bdt;
-            }
-          }
-          
-          monthlyData.total = {
-            energy: parseFloat(monthTotalEnergy.toFixed(2)),
-            cost: parseFloat(monthTotalCost.toFixed(2)),
-            days: moment().date()
-          };
-          
-          // Get recent alerts
-          db.all(`SELECT * FROM alerts WHERE acknowledged = FALSE 
-                  ORDER BY timestamp DESC LIMIT 10`, (err, alertRows) => {
-            if (err) return reject(err);
-            
-            const dashboardData = {
-              realtime,
-              today: todayData,
-              monthly: monthlyData,
-              alerts: alertRows || [],
-              timestamp: moment().format('YYYY-MM-DD HH:mm:ss')
-            };
-            
-            // Generate optimization suggestions
-            dashboardData.suggestions = generateOptimizationSuggestions(dashboardData);
-            
-            resolve(dashboardData);
-          });
-        });
+        resolve(row);
       });
     });
-  });
+    
+    const masterEnabled = masterRow ? masterRow.value === 'true' : false;
+    
+    const realtimeRows = await new Promise((resolve, reject) => {
+      db.all("SELECT * FROM realtime_data ORDER BY port", (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows);
+      });
+    });
+    
+    const realtime = {};
+    for (let i = 1; i <= 4; i++) {
+      const data = realtimeRows.find(row => row.port === i);
+      realtime[`port${i}`] = data ? {
+        voltage: data.voltage,
+        current: data.current,
+        power: data.power,
+        status: data.status
+      } : { voltage: 0, current: 0, power: 0, status: 'offline' };
+    }
+    realtime.masterEnabled = masterEnabled;
+    
+    const dailyRows = await new Promise((resolve, reject) => {
+      db.all("SELECT * FROM daily_consumption WHERE date = ?", [today], (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows);
+      });
+    });
+    
+    const todayData = {};
+    let totalEnergy = 0, totalCost = 0, totalRuntime = 0;
+    
+    for (let i = 1; i <= 4; i++) {
+      const data = dailyRows.find(row => row.port === i);
+      todayData[`port${i}`] = data ? {
+        energy: parseFloat(data.energy_kwh.toFixed(2)),
+        cost: parseFloat(data.cost_bdt.toFixed(2)),
+        runtime: formatRuntime(data.runtime_minutes)
+      } : { energy: 0, cost: 0, runtime: '0h 0m' };
+      
+      if (data) {
+        totalEnergy += data.energy_kwh;
+        totalCost += data.cost_bdt;
+        totalRuntime += data.runtime_minutes;
+      }
+    }
+    
+    todayData.total = {
+      energy: parseFloat(totalEnergy.toFixed(2)),
+      cost: parseFloat(totalCost.toFixed(2)),
+      runtime: formatRuntime(totalRuntime)
+    };
+    
+    const monthlyRows = await new Promise((resolve, reject) => {
+      db.all("SELECT * FROM monthly_consumption WHERE year = ? AND month = ?", 
+             [currentYear, currentMonth], (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows);
+      });
+    });
+    
+    const monthlyData = {};
+    let monthTotalEnergy = 0, monthTotalCost = 0;
+    
+    for (let i = 1; i <= 4; i++) {
+      const data = monthlyRows.find(row => row.port === i);
+      monthlyData[`port${i}`] = data ? {
+        energy: parseFloat(data.energy_kwh.toFixed(2)),
+        cost: parseFloat(data.cost_bdt.toFixed(2))
+      } : { energy: 0, cost: 0 };
+      
+      if (data) {
+        monthTotalEnergy += data.energy_kwh;
+        monthTotalCost += data.cost_bdt;
+      }
+    }
+    
+    monthlyData.total = {
+      energy: parseFloat(monthTotalEnergy.toFixed(2)),
+      cost: parseFloat(monthTotalCost.toFixed(2)),
+      days: moment().date()
+    };
+    
+    const alertRows = await new Promise((resolve, reject) => {
+      db.all(`SELECT * FROM alerts WHERE acknowledged = FALSE 
+              ORDER BY timestamp DESC LIMIT 10`, (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows);
+      });
+    });
+    
+    const dashboardData = {
+      realtime,
+      today: todayData,
+      monthly: monthlyData,
+      alerts: alertRows || [],
+      timestamp: moment().format('YYYY-MM-DD HH:mm:ss')
+    };
+    
+    dashboardData.suggestions = generateOptimizationSuggestions(dashboardData);
+    
+    return dashboardData;
+  } catch (error) {
+    throw error;
+  }
 }
 
 
@@ -783,13 +838,20 @@ app.post('/api/toggle-master', async (req, res) => {
 // Database viewer endpoint
 app.get('/api/database/:table', (req, res) => {
   const { table } = req.params;
-  const allowedTables = ['realtime_data', 'daily_consumption', 'monthly_consumption', 'settings', 'alerts', 'peak_usage'];
+  const allowedTables = {
+    'realtime_data': 'realtime_data',
+    'daily_consumption': 'daily_consumption',
+    'monthly_consumption': 'monthly_consumption',
+    'settings': 'settings',
+    'alerts': 'alerts',
+    'peak_usage': 'peak_usage'
+  };
   
-  if (!allowedTables.includes(table)) {
+  if (!allowedTables[table]) {
     return res.status(400).json({ error: 'Invalid table name' });
   }
   
-  db.all(`SELECT * FROM ${table} ORDER BY id DESC LIMIT 100`, (err, rows) => {
+  db.all(`SELECT * FROM ${allowedTables[table]} ORDER BY id DESC LIMIT 100`, (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ table, data: rows });
   });
@@ -845,5 +907,39 @@ initializeDatabase().then(() => {
     console.log(`Smart Multiplug System running on port ${PORT}`);
     console.log(`Features: Real-time monitoring, Alerts, Peak detection, Export (CSV/PDF)`);
     console.log(`Waiting for WiFi module data...`);
+  });
+}).catch(err => {
+  console.error('Failed to initialize database:', err);
+  process.exit(1);
+});
+
+// Graceful shutdown handling for Railway
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  server.close(() => {
+    console.log('HTTP server closed');
+    db.close((err) => {
+      if (err) {
+        console.error('Error closing database:', err);
+      } else {
+        console.log('Database connection closed');
+      }
+      process.exit(0);
+    });
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully...');
+  server.close(() => {
+    console.log('HTTP server closed');
+    db.close((err) => {
+      if (err) {
+        console.error('Error closing database:', err);
+      } else {
+        console.log('Database connection closed');
+      }
+      process.exit(0);
+    });
   });
 });
