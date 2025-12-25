@@ -424,7 +424,7 @@ async function getDashboardData() {
         
         // Get today's data
         db.all("SELECT * FROM daily_consumption WHERE date = ?", [today], (err, dailyRows) => {
-        if (err) return reject(err);
+          if (err) return reject(err);
         
         const todayData = {};
         let totalEnergy = 0, totalCost = 0, totalRuntime = 0;
