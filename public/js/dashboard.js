@@ -442,7 +442,7 @@ class SmartMultiplugDashboard {
         }
 
         container.innerHTML = alerts.map(alert => `
-            <div class="alert-item ${alert.severity.toLowerCase()} fade-in" data-alert-id="${alert.id}">
+            <div class="alert-item ${alert.severity.toLowerCase()}" data-alert-id="${alert.id}">
                 <div class="alert-content">
                     <div class="alert-title">${this.getAlertTitle(alert.type)}</div>
                     <div class="alert-message">${alert.message}</div>
@@ -464,7 +464,7 @@ class SmartMultiplugDashboard {
         }
 
         container.innerHTML = suggestions.map(suggestion => `
-            <div class="suggestion-item fade-in">
+            <div class="suggestion-item">
                 <div class="suggestion-title">${this.getSuggestionTitle(suggestion.type)}</div>
                 <div class="suggestion-message">${suggestion.message}</div>
                 ${suggestion.savings ? `<div class="suggestion-savings">${suggestion.savings}</div>` : ''}
@@ -486,11 +486,8 @@ class SmartMultiplugDashboard {
 
     // Add update animation to elements
     addUpdateAnimation() {
-        const elements = document.querySelectorAll('.port-card, .billing-card');
-        elements.forEach(element => {
-            element.classList.add('fade-in');
-            setTimeout(() => element.classList.remove('fade-in'), 500);
-        });
+        // Removed fade-in animation to prevent jumping
+        // Elements update smoothly without visual disruption
     }
 
     // Update connection status indicator
