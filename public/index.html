@@ -23,113 +23,194 @@
     <div class="container">
         <!-- Real-time Status Section -->
         <section class="realtime-section">
-            <h2><i class="fas fa-bolt"></i> Real-time Status</h2>
+            <div class="section-header">
+                <h2><i class="fas fa-bolt"></i> Real-time Status</h2>
+                <div class="master-toggle">
+                    <span class="toggle-label">Master Control</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="masterToggle" onchange="toggleMaster()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
             <div class="ports-grid">
                 <!-- Port 1 -->
-                <div class="port-card" id="port1">
+                <div class="port-card oscilloscope-style" id="port1">
                     <div class="port-header">
-                        <h3>Port 1</h3>
-                        <span class="status-indicator offline" id="status1">Offline</span>
-                    </div>
-                    <div class="port-metrics">
-                        <div class="metric">
-                            <span class="metric-label">Voltage</span>
-                            <span class="metric-value" id="voltage1">0V</span>
+                        <div class="port-info">
+                            <h3>CH1 - Port 1</h3>
+                            <span class="status-indicator offline" id="status1">OFFLINE</span>
                         </div>
-                        <div class="metric">
-                            <span class="metric-label">Current</span>
-                            <span class="metric-value" id="current1">0A</span>
-                        </div>
-                        <div class="metric">
-                            <span class="metric-label">Power</span>
-                            <span class="metric-value" id="power1">0W</span>
+                        <div class="port-controls">
+                            <button class="toggle-btn" id="toggle1" onclick="togglePort(1)">
+                                <i class="fas fa-power-off"></i>
+                            </button>
                         </div>
                     </div>
-                    <div class="port-controls">
-                        <button class="toggle-btn" id="toggle1" onclick="togglePort(1)">
-                            <i class="fas fa-power-off"></i> Turn ON
-                        </button>
+                    
+                    <div class="oscilloscope-display">
+                        <div class="waveform-container">
+                            <div class="waveform voltage-wave">
+                                <div class="wave-header">
+                                    <span class="wave-label">V</span>
+                                    <span class="wave-value" id="voltage1">0V</span>
+                                </div>
+                                <canvas class="wave-canvas" id="voltageCanvas1" width="200" height="40"></canvas>
+                            </div>
+                            
+                            <div class="waveform current-wave">
+                                <div class="wave-header">
+                                    <span class="wave-label">I</span>
+                                    <span class="wave-value" id="current1">0A</span>
+                                </div>
+                                <canvas class="wave-canvas" id="currentCanvas1" width="200" height="40"></canvas>
+                            </div>
+                            
+                            <div class="waveform power-wave">
+                                <div class="wave-header">
+                                    <span class="wave-label">P</span>
+                                    <span class="wave-value" id="power1">0W</span>
+                                </div>
+                                <canvas class="wave-canvas" id="powerCanvas1" width="200" height="40"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div class="scope-grid"></div>
                     </div>
                 </div>
 
                 <!-- Port 2 -->
-                <div class="port-card" id="port2">
+                <div class="port-card oscilloscope-style" id="port2">
                     <div class="port-header">
-                        <h3>Port 2</h3>
-                        <span class="status-indicator offline" id="status2">Offline</span>
-                    </div>
-                    <div class="port-metrics">
-                        <div class="metric">
-                            <span class="metric-label">Voltage</span>
-                            <span class="metric-value" id="voltage2">0V</span>
+                        <div class="port-info">
+                            <h3>CH2 - Port 2</h3>
+                            <span class="status-indicator offline" id="status2">OFFLINE</span>
                         </div>
-                        <div class="metric">
-                            <span class="metric-label">Current</span>
-                            <span class="metric-value" id="current2">0A</span>
-                        </div>
-                        <div class="metric">
-                            <span class="metric-label">Power</span>
-                            <span class="metric-value" id="power2">0W</span>
+                        <div class="port-controls">
+                            <button class="toggle-btn" id="toggle2" onclick="togglePort(2)">
+                                <i class="fas fa-power-off"></i>
+                            </button>
                         </div>
                     </div>
-                    <div class="port-controls">
-                        <button class="toggle-btn" id="toggle2" onclick="togglePort(2)">
-                            <i class="fas fa-power-off"></i> Turn ON
-                        </button>
+                    
+                    <div class="oscilloscope-display">
+                        <div class="waveform-container">
+                            <div class="waveform voltage-wave">
+                                <div class="wave-header">
+                                    <span class="wave-label">V</span>
+                                    <span class="wave-value" id="voltage2">0V</span>
+                                </div>
+                                <canvas class="wave-canvas" id="voltageCanvas2" width="200" height="40"></canvas>
+                            </div>
+                            
+                            <div class="waveform current-wave">
+                                <div class="wave-header">
+                                    <span class="wave-label">I</span>
+                                    <span class="wave-value" id="current2">0A</span>
+                                </div>
+                                <canvas class="wave-canvas" id="currentCanvas2" width="200" height="40"></canvas>
+                            </div>
+                            
+                            <div class="waveform power-wave">
+                                <div class="wave-header">
+                                    <span class="wave-label">P</span>
+                                    <span class="wave-value" id="power2">0W</span>
+                                </div>
+                                <canvas class="wave-canvas" id="powerCanvas2" width="200" height="40"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div class="scope-grid"></div>
                     </div>
                 </div>
 
-                <!-- Port 3 - DISABLED -->
-                <div class="port-card disabled" id="port3">
+                <!-- Port 3 -->
+                <div class="port-card oscilloscope-style" id="port3">
                     <div class="port-header">
-                        <h3>Port 3</h3>
-                        <span class="status-indicator disabled" id="status3">Disabled</span>
-                    </div>
-                    <div class="port-metrics">
-                        <div class="metric">
-                            <span class="metric-label">Voltage</span>
-                            <span class="metric-value" id="voltage3">--</span>
+                        <div class="port-info">
+                            <h3>CH3 - Port 3</h3>
+                            <span class="status-indicator offline" id="status3">OFFLINE</span>
                         </div>
-                        <div class="metric">
-                            <span class="metric-label">Current</span>
-                            <span class="metric-value" id="current3">--</span>
-                        </div>
-                        <div class="metric">
-                            <span class="metric-label">Power</span>
-                            <span class="metric-value" id="power3">--</span>
+                        <div class="port-controls">
+                            <button class="toggle-btn" id="toggle3" onclick="togglePort(3)">
+                                <i class="fas fa-power-off"></i>
+                            </button>
                         </div>
                     </div>
-                    <div class="port-controls">
-                        <button class="toggle-btn disabled" disabled>
-                            <i class="fas fa-ban"></i> Disabled
-                        </button>
+                    
+                    <div class="oscilloscope-display">
+                        <div class="waveform-container">
+                            <div class="waveform voltage-wave">
+                                <div class="wave-header">
+                                    <span class="wave-label">V</span>
+                                    <span class="wave-value" id="voltage3">0V</span>
+                                </div>
+                                <canvas class="wave-canvas" id="voltageCanvas3" width="200" height="40"></canvas>
+                            </div>
+                            
+                            <div class="waveform current-wave">
+                                <div class="wave-header">
+                                    <span class="wave-label">I</span>
+                                    <span class="wave-value" id="current3">0A</span>
+                                </div>
+                                <canvas class="wave-canvas" id="currentCanvas3" width="200" height="40"></canvas>
+                            </div>
+                            
+                            <div class="waveform power-wave">
+                                <div class="wave-header">
+                                    <span class="wave-label">P</span>
+                                    <span class="wave-value" id="power3">0W</span>
+                                </div>
+                                <canvas class="wave-canvas" id="powerCanvas3" width="200" height="40"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div class="scope-grid"></div>
                     </div>
                 </div>
 
-                <!-- Port 4 - DISABLED -->
-                <div class="port-card disabled" id="port4">
+                <!-- Port 4 -->
+                <div class="port-card oscilloscope-style" id="port4">
                     <div class="port-header">
-                        <h3>Port 4</h3>
-                        <span class="status-indicator disabled" id="status4">Disabled</span>
-                    </div>
-                    <div class="port-metrics">
-                        <div class="metric">
-                            <span class="metric-label">Voltage</span>
-                            <span class="metric-value" id="voltage4">--</span>
+                        <div class="port-info">
+                            <h3>CH4 - Port 4</h3>
+                            <span class="status-indicator offline" id="status4">OFFLINE</span>
                         </div>
-                        <div class="metric">
-                            <span class="metric-label">Current</span>
-                            <span class="metric-value" id="current4">--</span>
-                        </div>
-                        <div class="metric">
-                            <span class="metric-label">Power</span>
-                            <span class="metric-value" id="power4">--</span>
+                        <div class="port-controls">
+                            <button class="toggle-btn" id="toggle4" onclick="togglePort(4)">
+                                <i class="fas fa-power-off"></i>
+                            </button>
                         </div>
                     </div>
-                    <div class="port-controls">
-                        <button class="toggle-btn disabled" disabled>
-                            <i class="fas fa-ban"></i> Disabled
-                        </button>
+                    
+                    <div class="oscilloscope-display">
+                        <div class="waveform-container">
+                            <div class="waveform voltage-wave">
+                                <div class="wave-header">
+                                    <span class="wave-label">V</span>
+                                    <span class="wave-value" id="voltage4">0V</span>
+                                </div>
+                                <canvas class="wave-canvas" id="voltageCanvas4" width="200" height="40"></canvas>
+                            </div>
+                            
+                            <div class="waveform current-wave">
+                                <div class="wave-header">
+                                    <span class="wave-label">I</span>
+                                    <span class="wave-value" id="current4">0A</span>
+                                </div>
+                                <canvas class="wave-canvas" id="currentCanvas4" width="200" height="40"></canvas>
+                            </div>
+                            
+                            <div class="waveform power-wave">
+                                <div class="wave-header">
+                                    <span class="wave-label">P</span>
+                                    <span class="wave-value" id="power4">0W</span>
+                                </div>
+                                <canvas class="wave-canvas" id="powerCanvas4" width="200" height="40"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div class="scope-grid"></div>
                     </div>
                 </div>
             </div>
@@ -137,7 +218,7 @@
 
         <!-- Billing Summary Section -->
         <section class="billing-section">
-            <h2><i class="fas fa-calculator"></i> Billing Summary</h2>
+            <h2><i class="fas fa-calculator" style="margin-bottom:  20px;"></i> Billing Summary</h2>
             <div class="billing-grid">
                 <!-- Today's Summary -->
                 <div class="billing-card today-card">
@@ -195,18 +276,18 @@
                                 <span id="port2DailyCost">0 BDT</span>
                             </span>
                         </div>
-                        <div class="port-item disabled">
+                        <div class="port-item">
                             <span class="port-label">Port 3:</span>
                             <span class="port-values">
-                                <span id="port3DailyEnergy">-- kWh</span> | 
-                                <span id="port3DailyCost">-- BDT</span>
+                                <span id="port3DailyEnergy">0 kWh</span> | 
+                                <span id="port3DailyCost">0 BDT</span>
                             </span>
                         </div>
-                        <div class="port-item disabled">
+                        <div class="port-item">
                             <span class="port-label">Port 4:</span>
                             <span class="port-values">
-                                <span id="port4DailyEnergy">-- kWh</span> | 
-                                <span id="port4DailyCost">-- BDT</span>
+                                <span id="port4DailyEnergy">0 kWh</span> | 
+                                <span id="port4DailyCost">0 BDT</span>
                             </span>
                         </div>
                     </div>
@@ -230,18 +311,18 @@
                                 <span id="port2MonthlyCost">0 BDT</span>
                             </span>
                         </div>
-                        <div class="port-item disabled">
+                        <div class="port-item">
                             <span class="port-label">Port 3:</span>
                             <span class="port-values">
-                                <span id="port3MonthlyEnergy">-- kWh</span> | 
-                                <span id="port3MonthlyCost">-- BDT</span>
+                                <span id="port3MonthlyEnergy">0 kWh</span> | 
+                                <span id="port3MonthlyCost">0 BDT</span>
                             </span>
                         </div>
-                        <div class="port-item disabled">
+                        <div class="port-item">
                             <span class="port-label">Port 4:</span>
                             <span class="port-values">
-                                <span id="port4MonthlyEnergy">-- kWh</span> | 
-                                <span id="port4MonthlyCost">-- BDT</span>
+                                <span id="port4MonthlyEnergy">0 kWh</span> | 
+                                <span id="port4MonthlyCost">0 BDT</span>
                             </span>
                         </div>
                     </div>
@@ -267,16 +348,16 @@
 
         <!-- Controls Section -->
         <section class="controls-section">
-            <h2><i class="fas fa-cogs"></i> Controls</h2>
+            <h2><i class="fas fa-cogs" style="margin-bottom:  20px;"></i> Controls</h2>
             <div class="controls-grid">
                 <button class="control-btn export-btn" onclick="exportCSV()">
                     <i class="fas fa-file-csv"></i> Export CSV
                 </button>
-                <button class="control-btn export-btn" onclick="exportPDF()">
+                <button class="control-btn export-btn " onclick="exportPDF()">
                     <i class="fas fa-file-pdf"></i> Export PDF
                 </button>
-                <button class="control-btn reset-btn" onclick="resetDailyData()">
-                    <i class="fas fa-refresh"></i> Reset Daily
+                <!-- <button class="control-btn reset-btn" onclick="resetDailyData()">
+                    <i class="fas fa-refresh"></i> Reset Daily -->
                 </button>
                 <button class="control-btn settings-btn" onclick="openSettings()">
                     <i class="fas fa-cog"></i> Settings
@@ -289,14 +370,177 @@
     <div id="settingsModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Settings</h3>
+                <h3><i class="fas fa-cog"></i> System Configuration</h3>
                 <span class="close" onclick="closeSettings()">&times;</span>
             </div>
             <div class="modal-body">
-                <div class="setting-item">
-                    <label for="electricityRateInput">Electricity Rate (BDT/kWh):</label>
-                    <input type="number" id="electricityRateInput" step="0.1" min="0" value="8">
-                    <button onclick="updateElectricityRate()">Update</button>
+                <!-- Electricity Rate Settings -->
+                <div class="settings-group">
+                    <h4><i class="fas fa-bolt"></i> Power Settings</h4>
+                    <div class="setting-item">
+                        <label for="electricityRateInput">Electricity Rate (BDT/kWh):</label>
+                        <div class="input-group">
+                            <input type="number" id="electricityRateInput" step="0.1" min="0" value="8" class="settings-input">
+                            <button onclick="updateElectricityRate()" class="settings-btn">Update</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Alert Thresholds -->
+                <div class="settings-group">
+                    <h4><i class="fas fa-exclamation-triangle"></i> Alert Thresholds</h4>
+                    <div class="setting-item">
+                        <label for="powerThresholdInput">High Power Alert (W):</label>
+                        <div class="input-group">
+                            <input type="number" id="powerThresholdInput" step="10" min="0" value="1000" class="settings-input">
+                            <button onclick="updatePowerThreshold()" class="settings-btn">Update</button>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <label for="costThresholdInput">Daily Cost Alert (BDT):</label>
+                        <div class="input-group">
+                            <input type="number" id="costThresholdInput" step="10" min="0" value="100" class="settings-input">
+                            <button onclick="updateCostThreshold()" class="settings-btn">Update</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Port Safety Limits -->
+                <div class="settings-group">
+                    <h4><i class="fas fa-shield-alt"></i> Port Safety Limits (Auto Shutoff)</h4>
+                    <div class="port-limits">
+                        <div class="port-limit-section">
+                            <h5>Port 1 Limits</h5>
+                            <div class="limit-inputs">
+                                <div class="limit-item">
+                                    <label>Max Voltage (V):</label>
+                                    <input type="number" id="port1VoltageLimit" step="1" min="0" value="240" class="settings-input">
+                                </div>
+                                <div class="limit-item">
+                                    <label>Max Current (A):</label>
+                                    <input type="number" id="port1CurrentLimit" step="0.1" min="0" value="10" class="settings-input">
+                                </div>
+                                <div class="limit-item">
+                                    <label>Max Power (W):</label>
+                                    <input type="number" id="port1PowerLimit" step="10" min="0" value="2000" class="settings-input">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="port-limit-section">
+                            <h5>Port 2 Limits</h5>
+                            <div class="limit-inputs">
+                                <div class="limit-item">
+                                    <label>Max Voltage (V):</label>
+                                    <input type="number" id="port2VoltageLimit" step="1" min="0" value="240" class="settings-input">
+                                </div>
+                                <div class="limit-item">
+                                    <label>Max Current (A):</label>
+                                    <input type="number" id="port2CurrentLimit" step="0.1" min="0" value="10" class="settings-input">
+                                </div>
+                                <div class="limit-item">
+                                    <label>Max Power (W):</label>
+                                    <input type="number" id="port2PowerLimit" step="10" min="0" value="2000" class="settings-input">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="port-limit-section">
+                            <h5>Port 3 Limits</h5>
+                            <div class="limit-inputs">
+                                <div class="limit-item">
+                                    <label>Max Voltage (V):</label>
+                                    <input type="number" id="port3VoltageLimit" step="1" min="0" value="240" class="settings-input">
+                                </div>
+                                <div class="limit-item">
+                                    <label>Max Current (A):</label>
+                                    <input type="number" id="port3CurrentLimit" step="0.1" min="0" value="10" class="settings-input">
+                                </div>
+                                <div class="limit-item">
+                                    <label>Max Power (W):</label>
+                                    <input type="number" id="port3PowerLimit" step="10" min="0" value="2000" class="settings-input">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="port-limit-section">
+                            <h5>Port 4 Limits</h5>
+                            <div class="limit-inputs">
+                                <div class="limit-item">
+                                    <label>Max Voltage (V):</label>
+                                    <input type="number" id="port4VoltageLimit" step="1" min="0" value="240" class="settings-input">
+                                </div>
+                                <div class="limit-item">
+                                    <label>Max Current (A):</label>
+                                    <input type="number" id="port4CurrentLimit" step="0.1" min="0" value="10" class="settings-input">
+                                </div>
+                                <div class="limit-item">
+                                    <label>Max Power (W):</label>
+                                    <input type="number" id="port4PowerLimit" step="10" min="0" value="2000" class="settings-input">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <button onclick="updatePortLimits()" class="settings-btn">
+                                <i class="fas fa-shield-alt"></i> Update All Port Limits
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System Settings -->
+                <div class="settings-group">
+                    <h4><i class="fas fa-microchip"></i> System Settings</h4>
+                    <div class="setting-item">
+                        <label for="updateIntervalInput">Update Interval (seconds):</label>
+                        <div class="input-group">
+                            <input type="number" id="updateIntervalInput" step="1" min="1" max="60" value="5" class="settings-input">
+                            <button onclick="updateInterval()" class="settings-btn">Update</button>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <label>Auto-refresh Dashboard:</label>
+                        <div class="toggle-group">
+                            <label class="toggle-switch small">
+                                <input type="checkbox" id="autoRefreshToggle" checked onchange="toggleAutoRefresh()">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="toggle-label">Enabled</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data Management -->
+                <div class="settings-group">
+                    <h4><i class="fas fa-database"></i> Data Management</h4>
+                    <div class="setting-item">
+                        <button onclick="resetDailyData()" class="settings-btn danger">
+                            <i class="fas fa-trash"></i> Reset Today's Data
+                        </button>
+                        <button onclick="clearAllAlerts()" class="settings-btn warning">
+                            <i class="fas fa-bell-slash"></i> Clear All Alerts
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Device Information -->
+                <div class="settings-group">
+                    <h4><i class="fas fa-info-circle"></i> Device Information</h4>
+                    <div class="device-info">
+                        <div class="info-item">
+                            <span class="info-label">System Version:</span>
+                            <span class="info-value">v1.2.0</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Last Calibration:</span>
+                            <span class="info-value" id="lastCalibration">--</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Uptime:</span>
+                            <span class="info-value" id="systemUptime">--</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

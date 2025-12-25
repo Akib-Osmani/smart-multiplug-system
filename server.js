@@ -657,9 +657,10 @@ app.post('/api/toggle', async (req, res) => {
       const currentState = row ? row.relay_state : 'OFF';
       const newState = currentState === 'ON' ? 'OFF' : 'ON';
       
-      // Update relay state in database
-      db.run(`UPDATE realtime_data SET relay_state = ? WHERE port = ?`, 
-             [newState, port], (err) => {
+      // Update or insert relay state in database
+      db.run(`INSERT OR REPLACE INTO realtime_data (port, voltage, current, power, status, relay_state) 
+              VALUES (?, 0, 0, 0, 'offline', ?)`, 
+             [port, newState], (err) => {
         if (err) return res.status(500).json({ error: err.message });
         
         // Broadcast update to all clients
@@ -675,13 +676,13 @@ app.post('/api/toggle', async (req, res) => {
 
 // Get relay status for ESP8266
 app.get('/api/relay-status', (req, res) => {
-    db.all(`SELECT port, relay_state FROM realtime_data WHERE port <= 2 ORDER BY port`, (err, rows) => {
+    db.all(`SELECT port, relay_state FROM realtime_data WHERE port <= 4 ORDER BY port`, (err, rows) => {
         if (err) {
             return res.status(500).json({ error: 'Database error' });
         }
         
         const relays = [];
-        for(let i = 1; i <= 2; i++) {
+        for(let i = 1; i <= 4; i++) {
             const row = rows.find(r => r.port === i);
             relays.push({
                 port: i,
@@ -691,6 +692,27 @@ app.get('/api/relay-status', (req, res) => {
         
         res.json({ relays });
     });
+});
+
+// Master toggle endpoint
+app.post('/api/toggle-master', async (req, res) => {
+  try {
+    const { port, state } = req.body;
+    
+    // Update relay state in database
+    db.run(`INSERT OR REPLACE INTO realtime_data (port, voltage, current, power, status, relay_state) 
+            VALUES (?, 0, 0, 0, 'offline', ?)`, 
+           [port, state], (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      
+      // Broadcast update to all clients
+      io.emit('relayUpdate', { port, state });
+      
+      res.json({ success: true, port, state });
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // WebSocket connection handling
