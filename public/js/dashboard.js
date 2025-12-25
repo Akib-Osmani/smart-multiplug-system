@@ -45,121 +45,8 @@ class SmartMultiplugDashboard {
 
     // Generate realistic sample data
     generateSampleData() {
-        const sampleData = {
-            realtime: {},
-            today: { total: { energy: 0, cost: 0, runtime: '0h 0m' } },
-            monthly: { total: { energy: 0, cost: 0, days: new Date().getDate() } },
-            alerts: [],
-            suggestions: []
-        };
-
-        // Device profiles for realistic data (only ports 1-2 active)
-        const deviceProfiles = [
-            { name: 'AC Unit', minPower: 800, maxPower: 1200, baseVoltage: 220, onProb: 0.8 },
-            { name: 'Refrigerator', minPower: 150, maxPower: 300, baseVoltage: 218, onProb: 0.9 }
-        ];
-
-        let totalDailyEnergy = 0, totalDailyCost = 0, totalMonthlyEnergy = 0, totalMonthlyCost = 0;
-
-        // Generate data for active ports (1-2 only)
-        for (let port = 1; port <= 2; port++) {
-            const profile = deviceProfiles[port - 1];
-            const isOn = Math.random() < profile.onProb;
-            
-            let voltage = 0, current = 0, power = 0;
-            
-            if (isOn) {
-                voltage = profile.baseVoltage + (Math.random() - 0.5) * 8;
-                power = profile.minPower + Math.random() * (profile.maxPower - profile.minPower);
-                current = power / voltage;
-            }
-
-            sampleData.realtime[`port${port}`] = {
-                voltage: parseFloat(voltage.toFixed(1)),
-                current: parseFloat(current.toFixed(2)),
-                power: parseFloat(power.toFixed(0)),
-                status: isOn ? 'online' : 'offline'
-            };
-
-            // Generate billing data
-            const dailyEnergy = parseFloat((Math.random() * 15 + 2).toFixed(2));
-            const dailyCost = parseFloat((dailyEnergy * 8).toFixed(2));
-            const monthlyEnergy = parseFloat((dailyEnergy * 25 + Math.random() * 50).toFixed(2));
-            const monthlyCost = parseFloat((monthlyEnergy * 8).toFixed(2));
-
-            sampleData.today[`port${port}`] = {
-                energy: dailyEnergy,
-                cost: dailyCost,
-                runtime: `${Math.floor(Math.random() * 20 + 4)}h ${Math.floor(Math.random() * 60)}m`
-            };
-
-            sampleData.monthly[`port${port}`] = {
-                energy: monthlyEnergy,
-                cost: monthlyCost
-            };
-
-            totalDailyEnergy += dailyEnergy;
-            totalDailyCost += dailyCost;
-            totalMonthlyEnergy += monthlyEnergy;
-            totalMonthlyCost += monthlyCost;
-
-            // Generate alerts for high consumption
-            if (power > 900) {
-                sampleData.alerts.push({
-                    id: Date.now() + port,
-                    type: 'HIGH_USAGE',
-                    message: `Port ${port} consuming ${power}W - High power usage detected`,
-                    port: port,
-                    severity: 'WARNING'
-                });
-            }
-        }
-
-        // Set disabled ports (3-4) to zero values
-        for (let port = 3; port <= 4; port++) {
-            sampleData.realtime[`port${port}`] = {
-                voltage: 0,
-                current: 0,
-                power: 0,
-                status: 'disabled'
-            };
-
-            sampleData.today[`port${port}`] = {
-                energy: 0,
-                cost: 0,
-                runtime: '0h 0m'
-            };
-
-            sampleData.monthly[`port${port}`] = {
-                energy: 0,
-                cost: 0
-            };
-        }
-
-        // Update totals
-        sampleData.today.total = {
-            energy: parseFloat(totalDailyEnergy.toFixed(2)),
-            cost: parseFloat(totalDailyCost.toFixed(2)),
-            runtime: `${Math.floor(totalDailyEnergy * 2)}h ${Math.floor(Math.random() * 60)}m`
-        };
-
-        sampleData.monthly.total = {
-            energy: parseFloat(totalMonthlyEnergy.toFixed(2)),
-            cost: parseFloat(totalMonthlyCost.toFixed(2)),
-            days: new Date().getDate()
-        };
-
-        // Add sample suggestions
-        if (totalDailyCost > 100) {
-            sampleData.suggestions.push({
-                type: 'HIGH_CONSUMPTION',
-                message: 'Consider using energy-efficient appliances during peak hours',
-                savings: `Potential savings: ${(totalDailyCost * 0.2).toFixed(0)} BDT/day`
-            });
-        }
-
-        // Update dashboard with sample data
-        this.updateDashboard(sampleData);
+        // Dummy data generation removed - using real Arduino data only
+        console.log('Real-time data mode: Waiting for Arduino connection...');
     }
 
     // Initialize waveform canvases
@@ -799,8 +686,8 @@ async function clearAllAlerts() {
 async function updatePortLimits() {
     const portLimits = {};
     
-    // Collect limits for all 4 ports
-    for (let port = 1; port <= 4; port++) {
+    // Collect limits for active ports only (1-2)
+    for (let port = 1; port <= 2; port++) {
         const voltageLimit = parseFloat(document.getElementById(`port${port}VoltageLimit`).value);
         const currentLimit = parseFloat(document.getElementById(`port${port}CurrentLimit`).value);
         const powerLimit = parseFloat(document.getElementById(`port${port}PowerLimit`).value);
