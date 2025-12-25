@@ -27,27 +27,11 @@ class SmartMultiplugDashboard {
         this.setupEventListeners();
         this.loadInitialData();
         this.initializeWaveforms();
-        this.startSampleDataGeneration();
         
-        console.log('Smart Multiplug Dashboard initialized');
+        console.log('Smart Multiplug Dashboard initialized - Waiting for WiFi module data');
     }
 
-    // Start generating sample data for demo
-    startSampleDataGeneration() {
-        // Generate initial sample data
-        this.generateSampleData();
-        
-        // Update every 2 seconds for demo
-        setInterval(() => {
-            this.generateSampleData();
-        }, 2000);
-    }
 
-    // Generate realistic sample data
-    generateSampleData() {
-        // Dummy data generation removed - using real Arduino data only
-        console.log('Real-time data mode: Waiting for Arduino connection...');
-    }
 
     // Initialize waveform canvases
     initializeWaveforms() {
@@ -625,34 +609,11 @@ async function updateCostThreshold() {
 }
 
 function updateInterval() {
-    const intervalInput = document.getElementById('updateIntervalInput');
-    const newInterval = parseInt(intervalInput.value);
-    
-    if (isNaN(newInterval) || newInterval < 1 || newInterval > 60) {
-        dashboard.showNotification('Please enter a valid interval (1-60 seconds)', 'error');
-        return;
-    }
-
-    // Update the sample data generation interval
-    clearInterval(dashboard.sampleDataInterval);
-    dashboard.sampleDataInterval = setInterval(() => {
-        dashboard.generateSampleData();
-    }, newInterval * 1000);
-    
-    dashboard.showNotification(`Update interval set to ${newInterval} seconds`, 'success');
+    dashboard.showNotification('Update interval is controlled by WiFi module data frequency', 'info');
 }
 
 function toggleAutoRefresh() {
-    const toggle = document.getElementById('autoRefreshToggle');
-    const isEnabled = toggle.checked;
-    
-    if (isEnabled) {
-        dashboard.startSampleDataGeneration();
-        dashboard.showNotification('Auto-refresh enabled', 'success');
-    } else {
-        clearInterval(dashboard.sampleDataInterval);
-        dashboard.showNotification('Auto-refresh disabled', 'info');
-    }
+    dashboard.showNotification('Auto-refresh is controlled by WiFi module data', 'info');
 }
 
 async function clearAllAlerts() {

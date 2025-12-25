@@ -492,55 +492,7 @@ async function getDashboardData() {
   });
 }
 
-// Sample data generator
-function generateSampleData() {
-  const baseVoltages = [220, 218, 222, 219];
-  const deviceProfiles = [
-    { name: 'AC/Heater', minPower: 800, maxPower: 1200, onProbability: 0.7 },
-    { name: 'Refrigerator', minPower: 150, maxPower: 300, onProbability: 0.9 },
-    { name: 'LED Lights', minPower: 20, maxPower: 60, onProbability: 0.8 },
-    { name: 'Occasional Device', minPower: 50, maxPower: 200, onProbability: 0.3 }
-  ];
-  
-  for (let port = 1; port <= 4; port++) {
-    const profile = deviceProfiles[port - 1];
-    const isOn = Math.random() < profile.onProbability;
-    
-    let power = 0;
-    let voltage = 0;
-    let current = 0;
-    
-    if (isOn) {
-      power = Math.random() * (profile.maxPower - profile.minPower) + profile.minPower;
-      voltage = baseVoltages[port - 1] + (Math.random() - 0.5) * 10;
-      current = power / voltage;
-    }
-    
-    // Update database
-    updateRealtimeData(port, voltage, current, power)
-      .then(() => updateDailyConsumption(port, power))
-      .then(async () => {
-        const energyKwh = calculateEnergyKwh(power, 1);
-        const rate = await getCurrentElectricityRate();
-        const costBdt = energyKwh * rate;
-        
-        await updateMonthlyConsumption(port, energyKwh, costBdt);
-        await updatePeakUsage(port, power);
-        
-        // Check for alerts
-        const dailyCost = await new Promise((resolve) => {
-          const today = moment().format('YYYY-MM-DD');
-          db.get("SELECT cost_bdt FROM daily_consumption WHERE date = ? AND port = ?",
-                 [today, port], (err, row) => {
-            resolve(row ? row.cost_bdt : 0);
-          });
-        });
-        
-        await checkAndCreateAlerts(port, power, dailyCost);
-      })
-      .catch(console.error);
-  }
-}
+
 
 // API Routes
 app.get('/api/data', async (req, res) => {
@@ -731,17 +683,7 @@ io.on('connection', async (socket) => {
   });
 });
 
-// Scheduled tasks
-// Generate sample data every minute
-setInterval(async () => {
-  try {
-    generateSampleData();
-    const updatedData = await getDashboardData();
-    io.emit('dataUpdate', updatedData);
-  } catch (error) {
-    console.error('Error in sample data generation:', error);
-  }
-}, UPDATE_INTERVAL);
+
 
 // Daily cleanup task (runs at midnight)
 cron.schedule('0 0 * * *', () => {
@@ -761,6 +703,6 @@ initializeDatabase().then(() => {
   server.listen(PORT, () => {
     console.log(`Smart Multiplug System running on port ${PORT}`);
     console.log(`Features: Real-time monitoring, Alerts, Peak detection, Export (CSV/PDF)`);
-    console.log(`Sample data generation: Every ${UPDATE_INTERVAL/1000} seconds`);
+    console.log(`Waiting for WiFi module data...`);
   });
 });
