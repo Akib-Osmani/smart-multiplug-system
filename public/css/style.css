@@ -854,6 +854,14 @@ input:checked + .slider:before {
     transform: translateX(20px);
 }
 
+.toggle-group .toggle-label {
+    font-size: 0.85rem;
+    color: #b0b0b0;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
 /* Device Information */
 .device-info {
     display: flex;
@@ -947,9 +955,23 @@ input:checked + .slider:before {
     min-width: auto;
 }
 
-.limit-item .settings-input {
-    min-width: auto;
-    width: 100%;
+.disabled-label {
+    font-size: 0.7rem;
+    color: #666;
+    font-weight: normal;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.port-limit-section.disabled {
+    opacity: 0.5;
+    background: #2a2a2a;
+    border-color: #444;
+}
+
+.port-limit-section.disabled:hover {
+    border-color: #444;
+    box-shadow: none;
 }
 
 /* Responsive Design */

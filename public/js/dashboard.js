@@ -53,18 +53,16 @@ class SmartMultiplugDashboard {
             suggestions: []
         };
 
-        // Device profiles for realistic data
+        // Device profiles for realistic data (only ports 1-2 active)
         const deviceProfiles = [
             { name: 'AC Unit', minPower: 800, maxPower: 1200, baseVoltage: 220, onProb: 0.8 },
-            { name: 'Refrigerator', minPower: 150, maxPower: 300, baseVoltage: 218, onProb: 0.9 },
-            { name: 'LED Lights', minPower: 20, maxPower: 80, baseVoltage: 222, onProb: 0.7 },
-            { name: 'Heater', minPower: 500, maxPower: 1000, baseVoltage: 219, onProb: 0.6 }
+            { name: 'Refrigerator', minPower: 150, maxPower: 300, baseVoltage: 218, onProb: 0.9 }
         ];
 
         let totalDailyEnergy = 0, totalDailyCost = 0, totalMonthlyEnergy = 0, totalMonthlyCost = 0;
 
-        // Generate data for each port
-        for (let port = 1; port <= 4; port++) {
+        // Generate data for active ports (1-2 only)
+        for (let port = 1; port <= 2; port++) {
             const profile = deviceProfiles[port - 1];
             const isOn = Math.random() < profile.onProb;
             
@@ -115,6 +113,27 @@ class SmartMultiplugDashboard {
                     severity: 'WARNING'
                 });
             }
+        }
+
+        // Set disabled ports (3-4) to zero values
+        for (let port = 3; port <= 4; port++) {
+            sampleData.realtime[`port${port}`] = {
+                voltage: 0,
+                current: 0,
+                power: 0,
+                status: 'disabled'
+            };
+
+            sampleData.today[`port${port}`] = {
+                energy: 0,
+                cost: 0,
+                runtime: '0h 0m'
+            };
+
+            sampleData.monthly[`port${port}`] = {
+                energy: 0,
+                cost: 0
+            };
         }
 
         // Update totals

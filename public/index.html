@@ -124,26 +124,26 @@
                     </div>
                 </div>
 
-                <!-- Port 3 -->
-                <div class="port-card oscilloscope-style" id="port3">
+                <!-- Port 3 - DISABLED -->
+                <div class="port-card oscilloscope-style disabled" id="port3">
                     <div class="port-header">
                         <div class="port-info">
-                            <h3>CH3 - Port 3</h3>
-                            <span class="status-indicator offline" id="status3">OFFLINE</span>
+                            <h3>CH3 - Port 3 <span class="disabled-label">(Future Use)</span></h3>
+                            <span class="status-indicator disabled" id="status3">DISABLED</span>
                         </div>
                         <div class="port-controls">
-                            <button class="toggle-btn" id="toggle3" onclick="togglePort(3)">
+                            <button class="toggle-btn disabled" id="toggle3" disabled>
                                 <i class="fas fa-power-off"></i>
                             </button>
                         </div>
                     </div>
                     
-                    <div class="oscilloscope-display">
+                    <div class="oscilloscope-display disabled">
                         <div class="waveform-container">
                             <div class="waveform voltage-wave">
                                 <div class="wave-header">
                                     <span class="wave-label">V</span>
-                                    <span class="wave-value" id="voltage3">0V</span>
+                                    <span class="wave-value" id="voltage3">--</span>
                                 </div>
                                 <canvas class="wave-canvas" id="voltageCanvas3" width="200" height="40"></canvas>
                             </div>
@@ -151,7 +151,7 @@
                             <div class="waveform current-wave">
                                 <div class="wave-header">
                                     <span class="wave-label">I</span>
-                                    <span class="wave-value" id="current3">0A</span>
+                                    <span class="wave-value" id="current3">--</span>
                                 </div>
                                 <canvas class="wave-canvas" id="currentCanvas3" width="200" height="40"></canvas>
                             </div>
@@ -159,7 +159,7 @@
                             <div class="waveform power-wave">
                                 <div class="wave-header">
                                     <span class="wave-label">P</span>
-                                    <span class="wave-value" id="power3">0W</span>
+                                    <span class="wave-value" id="power3">--</span>
                                 </div>
                                 <canvas class="wave-canvas" id="powerCanvas3" width="200" height="40"></canvas>
                             </div>
@@ -169,26 +169,26 @@
                     </div>
                 </div>
 
-                <!-- Port 4 -->
-                <div class="port-card oscilloscope-style" id="port4">
+                <!-- Port 4 - DISABLED -->
+                <div class="port-card oscilloscope-style disabled" id="port4">
                     <div class="port-header">
                         <div class="port-info">
-                            <h3>CH4 - Port 4</h3>
-                            <span class="status-indicator offline" id="status4">OFFLINE</span>
+                            <h3>CH4 - Port 4 <span class="disabled-label">(Future Use)</span></h3>
+                            <span class="status-indicator disabled" id="status4">DISABLED</span>
                         </div>
                         <div class="port-controls">
-                            <button class="toggle-btn" id="toggle4" onclick="togglePort(4)">
+                            <button class="toggle-btn disabled" id="toggle4" disabled>
                                 <i class="fas fa-power-off"></i>
                             </button>
                         </div>
                     </div>
                     
-                    <div class="oscilloscope-display">
+                    <div class="oscilloscope-display disabled">
                         <div class="waveform-container">
                             <div class="waveform voltage-wave">
                                 <div class="wave-header">
                                     <span class="wave-label">V</span>
-                                    <span class="wave-value" id="voltage4">0V</span>
+                                    <span class="wave-value" id="voltage4">--</span>
                                 </div>
                                 <canvas class="wave-canvas" id="voltageCanvas4" width="200" height="40"></canvas>
                             </div>
@@ -196,7 +196,7 @@
                             <div class="waveform current-wave">
                                 <div class="wave-header">
                                     <span class="wave-label">I</span>
-                                    <span class="wave-value" id="current4">0A</span>
+                                    <span class="wave-value" id="current4">--</span>
                                 </div>
                                 <canvas class="wave-canvas" id="currentCanvas4" width="200" height="40"></canvas>
                             </div>
@@ -204,7 +204,7 @@
                             <div class="waveform power-wave">
                                 <div class="wave-header">
                                     <span class="wave-label">P</span>
-                                    <span class="wave-value" id="power4">0W</span>
+                                    <span class="wave-value" id="power4">--</span>
                                 </div>
                                 <canvas class="wave-canvas" id="powerCanvas4" width="200" height="40"></canvas>
                             </div>
@@ -276,18 +276,18 @@
                                 <span id="port2DailyCost">0 BDT</span>
                             </span>
                         </div>
-                        <div class="port-item">
+                        <div class="port-item disabled">
                             <span class="port-label">Port 3:</span>
                             <span class="port-values">
-                                <span id="port3DailyEnergy">0 kWh</span> | 
-                                <span id="port3DailyCost">0 BDT</span>
+                                <span id="port3DailyEnergy">-- kWh</span> | 
+                                <span id="port3DailyCost">-- BDT</span>
                             </span>
                         </div>
-                        <div class="port-item">
+                        <div class="port-item disabled">
                             <span class="port-label">Port 4:</span>
                             <span class="port-values">
-                                <span id="port4DailyEnergy">0 kWh</span> | 
-                                <span id="port4DailyCost">0 BDT</span>
+                                <span id="port4DailyEnergy">-- kWh</span> | 
+                                <span id="port4DailyCost">-- BDT</span>
                             </span>
                         </div>
                     </div>
@@ -311,18 +311,18 @@
                                 <span id="port2MonthlyCost">0 BDT</span>
                             </span>
                         </div>
-                        <div class="port-item">
+                        <div class="port-item disabled">
                             <span class="port-label">Port 3:</span>
                             <span class="port-values">
-                                <span id="port3MonthlyEnergy">0 kWh</span> | 
-                                <span id="port3MonthlyCost">0 BDT</span>
+                                <span id="port3MonthlyEnergy">-- kWh</span> | 
+                                <span id="port3MonthlyCost">-- BDT</span>
                             </span>
                         </div>
-                        <div class="port-item">
+                        <div class="port-item disabled">
                             <span class="port-label">Port 4:</span>
                             <span class="port-values">
-                                <span id="port4MonthlyEnergy">0 kWh</span> | 
-                                <span id="port4MonthlyCost">0 BDT</span>
+                                <span id="port4MonthlyEnergy">-- kWh</span> | 
+                                <span id="port4MonthlyCost">-- BDT</span>
                             </span>
                         </div>
                     </div>
@@ -445,38 +445,38 @@
                             </div>
                         </div>
                         
-                        <div class="port-limit-section">
-                            <h5>Port 3 Limits</h5>
+                        <div class="port-limit-section disabled">
+                            <h5>Port 3 Limits <span class="disabled-label">(Disabled)</span></h5>
                             <div class="limit-inputs">
                                 <div class="limit-item">
                                     <label>Max Voltage (V):</label>
-                                    <input type="number" id="port3VoltageLimit" step="1" min="0" value="240" class="settings-input">
+                                    <input type="number" id="port3VoltageLimit" step="1" min="0" value="240" class="settings-input" disabled>
                                 </div>
                                 <div class="limit-item">
                                     <label>Max Current (A):</label>
-                                    <input type="number" id="port3CurrentLimit" step="0.1" min="0" value="10" class="settings-input">
+                                    <input type="number" id="port3CurrentLimit" step="0.1" min="0" value="10" class="settings-input" disabled>
                                 </div>
                                 <div class="limit-item">
                                     <label>Max Power (W):</label>
-                                    <input type="number" id="port3PowerLimit" step="10" min="0" value="2000" class="settings-input">
+                                    <input type="number" id="port3PowerLimit" step="10" min="0" value="2000" class="settings-input" disabled>
                                 </div>
                             </div>
                         </div>
                         
-                        <div class="port-limit-section">
-                            <h5>Port 4 Limits</h5>
+                        <div class="port-limit-section disabled">
+                            <h5>Port 4 Limits <span class="disabled-label">(Disabled)</span></h5>
                             <div class="limit-inputs">
                                 <div class="limit-item">
                                     <label>Max Voltage (V):</label>
-                                    <input type="number" id="port4VoltageLimit" step="1" min="0" value="240" class="settings-input">
+                                    <input type="number" id="port4VoltageLimit" step="1" min="0" value="240" class="settings-input" disabled>
                                 </div>
                                 <div class="limit-item">
                                     <label>Max Current (A):</label>
-                                    <input type="number" id="port4CurrentLimit" step="0.1" min="0" value="10" class="settings-input">
+                                    <input type="number" id="port4CurrentLimit" step="0.1" min="0" value="10" class="settings-input" disabled>
                                 </div>
                                 <div class="limit-item">
                                     <label>Max Power (W):</label>
-                                    <input type="number" id="port4PowerLimit" step="10" min="0" value="2000" class="settings-input">
+                                    <input type="number" id="port4PowerLimit" step="10" min="0" value="2000" class="settings-input" disabled>
                                 </div>
                             </div>
                         </div>
