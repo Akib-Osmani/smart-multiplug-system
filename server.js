@@ -398,23 +398,32 @@ async function getDashboardData() {
     const currentYear = moment().year();
     const currentMonth = moment().month() + 1;
     
-    // Get real-time data
-    db.all("SELECT * FROM realtime_data ORDER BY port", (err, realtimeRows) => {
+    // Get master control state
+    db.get("SELECT value FROM settings WHERE key = 'master_enabled'", (err, masterRow) => {
       if (err) return reject(err);
       
-      const realtime = {};
-      for (let i = 1; i <= 4; i++) {
-        const data = realtimeRows.find(row => row.port === i);
-        realtime[`port${i}`] = data ? {
-          voltage: data.voltage,
-          current: data.current,
-          power: data.power,
-          status: data.status
-        } : { voltage: 0, current: 0, power: 0, status: 'offline' };
-      }
+      const masterEnabled = masterRow ? masterRow.value === 'true' : false;
       
-      // Get today's data
-      db.all("SELECT * FROM daily_consumption WHERE date = ?", [today], (err, dailyRows) => {
+      // Get real-time data
+      db.all("SELECT * FROM realtime_data ORDER BY port", (err, realtimeRows) => {
+        if (err) return reject(err);
+        
+        const realtime = {};
+        for (let i = 1; i <= 4; i++) {
+          const data = realtimeRows.find(row => row.port === i);
+          realtime[`port${i}`] = data ? {
+            voltage: data.voltage,
+            current: data.current,
+            power: data.power,
+            status: data.status
+          } : { voltage: 0, current: 0, power: 0, status: 'offline' };
+        }
+        
+        // Add master control state to realtime data
+        realtime.masterEnabled = masterEnabled;
+        
+        // Get today's data
+        db.all("SELECT * FROM daily_consumption WHERE date = ?", [today], (err, dailyRows) => {
         if (err) return reject(err);
         
         const todayData = {};

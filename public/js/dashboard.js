@@ -10,6 +10,13 @@ class SmartMultiplugDashboard {
         this.currentData = null;
         this.isConnected = false;
         
+        // Hardware sync state tracking
+        this.pendingStates = {
+            master: null,
+            port1: null,
+            port2: null
+        };
+        
         // Waveform data storage
         this.waveformData = {
             voltage: [[], [], [], []],
@@ -227,13 +234,12 @@ class SmartMultiplugDashboard {
         this.addUpdateAnimation();
     }
 
-    // Update real-time status for all ports
+    // Update real-time status for all ports with hardware sync confirmation
     updateRealtimeStatus(realtimeData) {
         for (let port = 1; port <= 4; port++) {
             const portData = realtimeData[`port${port}`];
             if (!portData) continue;
 
-            // Sync status with relay state and power readings
             const statusElement = document.getElementById(`status${port}`);
             const toggle = document.getElementById(`toggle${port}`);
             
@@ -243,16 +249,30 @@ class SmartMultiplugDashboard {
                 actualStatus = 'online';
             }
             
-            // Update status indicator
-            statusElement.textContent = actualStatus.toUpperCase();
-            statusElement.className = `status-indicator ${actualStatus}`;
+            // Check for pending state confirmation (only for active ports)
+            if (port <= 2 && toggle && this.pendingStates[`port${port}`] !== null) {
+                const expectedState = this.pendingStates[`port${port}`];
+                const actualState = (actualStatus === 'online');
+                
+                // If hardware state matches expected state, clear pending
+                if (expectedState === actualState) {
+                    this.pendingStates[`port${port}`] = null;
+                    toggle.disabled = false;
+                    dashboard.showNotification(`Port ${port} hardware confirmed ${actualStatus.toUpperCase()}`, 'success');
+                }
+            }
             
-            // Sync toggle switch with actual relay state (only for active ports)
-            if (port <= 2 && toggle) {
-                toggle.checked = (actualStatus === 'online');
+            // Only update UI if not pending or if confirmed
+            if (port > 2 || !toggle || this.pendingStates[`port${port}`] === null) {
+                statusElement.textContent = actualStatus.toUpperCase();
+                statusElement.className = `status-indicator ${actualStatus}`;
+                
+                if (port <= 2 && toggle) {
+                    toggle.checked = (actualStatus === 'online');
+                }
             }
 
-            // Update metrics
+            // Always update metrics
             document.getElementById(`voltage${port}`).textContent = `${portData.voltage.toFixed(1)}V`;
             document.getElementById(`current${port}`).textContent = `${portData.current.toFixed(2)}A`;
             document.getElementById(`power${port}`).textContent = `${portData.power.toFixed(0)}W`;
@@ -269,8 +289,19 @@ class SmartMultiplugDashboard {
             }
         }
         
-        // DO NOT auto-sync master toggle with individual ports
-        // Master acts as main power control - stays independent
+        // Check master control confirmation
+        if (this.pendingStates.master !== null && realtimeData.masterEnabled !== undefined) {
+            const expectedMaster = this.pendingStates.master;
+            const actualMaster = realtimeData.masterEnabled;
+            
+            if (expectedMaster === actualMaster) {
+                this.pendingStates.master = null;
+                const masterToggle = document.getElementById('masterToggle');
+                masterToggle.disabled = false;
+                masterToggle.checked = actualMaster;
+                dashboard.showNotification(`Master control hardware confirmed ${actualMaster ? 'ON' : 'OFF'}`, 'success');
+            }
+        }
     }
 
     // Add data to waveform arrays
@@ -454,7 +485,7 @@ class SmartMultiplugDashboard {
         // Style notification
         Object.assign(notification.style, {
             position: 'fixed',
-            top: '20px',
+            bottom: '20px',
             right: '20px',
             padding: '1rem 1.5rem',
             borderRadius: '8px',
@@ -834,18 +865,31 @@ window.addEventListener('offline', () => {
     }
 });
 
-// Toggle port function
+// Toggle port function with hardware sync safety
 async function togglePort(port) {
     const toggle = document.getElementById(`toggle${port}`);
     const statusElement = document.getElementById(`status${port}`);
     const masterToggle = document.getElementById('masterToggle');
     
+    // Check if already pending
+    if (dashboard.pendingStates[`port${port}`] !== null) {
+        dashboard.showNotification('Port operation in progress, please wait', 'warning');
+        return;
+    }
+    
     // Check if master is OFF and user is trying to turn ON a port
     if (!masterToggle.checked && toggle.checked) {
-        toggle.checked = false; // Revert the toggle
+        toggle.checked = false;
         dashboard.showNotification('Please turn ON Master Control first', 'warning');
         return;
     }
+    
+    // Set pending state and disable control
+    const targetState = toggle.checked;
+    dashboard.pendingStates[`port${port}`] = targetState;
+    toggle.disabled = true;
+    statusElement.textContent = 'PENDING';
+    statusElement.className = 'status-indicator pending';
     
     try {
         const response = await fetch('/api/toggle', {
@@ -857,29 +901,20 @@ async function togglePort(port) {
         });
 
         if (response.ok) {
-            const data = await response.json();
-            
-            // Update toggle and status based on relay state
-            if (data.state === 'ON') {
-                toggle.checked = true;
-                statusElement.textContent = 'ONLINE';
-                statusElement.className = 'status-indicator online';
-            } else {
-                toggle.checked = false;
-                statusElement.textContent = 'OFFLINE';
-                statusElement.className = 'status-indicator offline';
-            }
-            
-            // DO NOT update master toggle automatically
-            // Master control is independent of individual port states
-            
-            dashboard.showNotification(`Port ${port} turned ${data.state}`, 'success');
+            // Wait for hardware confirmation via data updates
+            // UI will be updated when actual hardware state is received
+            dashboard.showNotification(`Port ${port} command sent, waiting for hardware confirmation`, 'info');
         } else {
             throw new Error('Failed to toggle port');
         }
     } catch (error) {
         console.error('Error toggling port:', error);
         dashboard.showNotification('Failed to toggle port', 'error');
+        
+        // Reset on error
+        dashboard.pendingStates[`port${port}`] = null;
+        toggle.disabled = false;
+        toggle.checked = !targetState;
     }
 }
 
@@ -889,13 +924,22 @@ function updateMasterToggleState() {
     console.log('Master toggle operates independently of individual ports');
 }
 
-// Master toggle function - Works like main electrical board switch
+// Master toggle function with hardware sync safety
 async function toggleMaster() {
     const masterToggle = document.getElementById('masterToggle');
     const isOn = masterToggle.checked;
     
+    // Check if already pending
+    if (dashboard.pendingStates.master !== null) {
+        dashboard.showNotification('Master control operation in progress, please wait', 'warning');
+        return;
+    }
+    
+    // Set pending state and disable control
+    dashboard.pendingStates.master = isOn;
+    masterToggle.disabled = true;
+    
     try {
-        // Send master control state to server
         const response = await fetch('/api/master-control', {
             method: 'POST',
             headers: {
@@ -908,28 +952,15 @@ async function toggleMaster() {
             throw new Error('Failed to update master control');
         }
         
-        // If turning OFF master, turn OFF all ports (safety feature)
-        if (!isOn) {
-            for (let port = 1; port <= 2; port++) {
-                const toggle = document.getElementById(`toggle${port}`);
-                const statusElement = document.getElementById(`status${port}`);
-                if (toggle) {
-                    toggle.checked = false;
-                    statusElement.textContent = 'OFFLINE';
-                    statusElement.className = 'status-indicator offline';
-                }
-            }
-            dashboard.showNotification('Master control turned OFF - All ports disabled', 'info');
-        } else {
-            // If turning ON master, just enable the system (don't auto-turn on ports)
-            dashboard.showNotification('Master control turned ON - Individual ports can now be controlled', 'success');
-        }
+        dashboard.showNotification(`Master control command sent, waiting for hardware confirmation`, 'info');
         
     } catch (error) {
         console.error('Error toggling master:', error);
         dashboard.showNotification('Failed to toggle master control', 'error');
         
-        // Revert master toggle on error
+        // Reset on error
+        dashboard.pendingStates.master = null;
+        masterToggle.disabled = false;
         masterToggle.checked = !isOn;
     }
 }
