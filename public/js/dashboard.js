@@ -364,7 +364,7 @@ class SmartMultiplugDashboard {
 
             // Sync status with relay state and power readings
             const statusElement = document.getElementById(`status${port}`);
-            const toggleBtn = document.getElementById(`toggle${port}`);
+            const toggle = document.getElementById(`toggle${port}`);
             
             // Determine actual status based on power and voltage
             let actualStatus = 'offline';
@@ -376,11 +376,9 @@ class SmartMultiplugDashboard {
             statusElement.textContent = actualStatus.toUpperCase();
             statusElement.className = `status-indicator ${actualStatus}`;
             
-            // Sync toggle button with actual relay state
-            if (actualStatus === 'online') {
-                toggleBtn.classList.add('on');
-            } else {
-                toggleBtn.classList.remove('on');
+            // Sync toggle switch with actual relay state (only for active ports)
+            if (port <= 2 && toggle) {
+                toggle.checked = (actualStatus === 'online');
             }
 
             // Update metrics
@@ -399,6 +397,9 @@ class SmartMultiplugDashboard {
                 portCard.style.borderColor = '#00ff00';
             }
         }
+        
+        // Update master toggle state after all ports are updated
+        updateMasterToggleState();
     }
 
     // Add data to waveform arrays
@@ -987,8 +988,16 @@ window.addEventListener('offline', () => {
 
 // Toggle port function
 async function togglePort(port) {
-    const btn = document.getElementById(`toggle${port}`);
+    const toggle = document.getElementById(`toggle${port}`);
     const statusElement = document.getElementById(`status${port}`);
+    const masterToggle = document.getElementById('masterToggle');
+    
+    // Check if master is OFF and user is trying to turn ON a port
+    if (!masterToggle.checked && toggle.checked) {
+        toggle.checked = false; // Revert the toggle
+        dashboard.showNotification('Please turn ON Master Control first', 'warning');
+        return;
+    }
     
     try {
         const response = await fetch('/api/toggle', {
@@ -1002,16 +1011,19 @@ async function togglePort(port) {
         if (response.ok) {
             const data = await response.json();
             
-            // Update button and status based on relay state
+            // Update toggle and status based on relay state
             if (data.state === 'ON') {
-                btn.classList.add('on');
+                toggle.checked = true;
                 statusElement.textContent = 'ONLINE';
                 statusElement.className = 'status-indicator online';
             } else {
-                btn.classList.remove('on');
+                toggle.checked = false;
                 statusElement.textContent = 'OFFLINE';
                 statusElement.className = 'status-indicator offline';
             }
+            
+            // Update master toggle based on individual port states
+            updateMasterToggleState();
             
             dashboard.showNotification(`Port ${port} turned ${data.state}`, 'success');
         } else {
@@ -1023,14 +1035,45 @@ async function togglePort(port) {
     }
 }
 
+// Update master toggle state based on individual ports
+function updateMasterToggleState() {
+    const masterToggle = document.getElementById('masterToggle');
+    const toggle1 = document.getElementById('toggle1');
+    const toggle2 = document.getElementById('toggle2');
+    
+    // Master is ON if any active port is ON
+    const anyPortOn = toggle1.checked || toggle2.checked;
+    masterToggle.checked = anyPortOn;
+}
+
 // Master toggle function
 async function toggleMaster() {
     const masterToggle = document.getElementById('masterToggle');
     const isOn = masterToggle.checked;
     
     try {
-        // Toggle all ports (1-4)
-        for (let port = 1; port <= 4; port++) {
+        // If turning OFF master, turn OFF all ports first
+        if (!isOn) {
+            for (let port = 1; port <= 2; port++) {
+                const toggle = document.getElementById(`toggle${port}`);
+                if (toggle) {
+                    toggle.checked = false;
+                }
+            }
+        }
+        
+        // If turning ON master, just enable individual port controls
+        if (isOn) {
+            for (let port = 1; port <= 2; port++) {
+                const toggle = document.getElementById(`toggle${port}`);
+                if (toggle) {
+                    toggle.checked = true;
+                }
+            }
+        }
+        
+        // Send API requests
+        for (let port = 1; port <= 2; port++) {
             const response = await fetch('/api/toggle-master', {
                 method: 'POST',
                 headers: {
@@ -1039,26 +1082,23 @@ async function toggleMaster() {
                 body: JSON.stringify({ port, state: isOn ? 'ON' : 'OFF' })
             });
             
-            if (response.ok) {
-                const data = await response.json();
-                
-                // Update individual button appearance
-                const btn = document.getElementById(`toggle${port}`);
-                if (data.state === 'ON') {
-                    btn.innerHTML = '<i class="fas fa-power-off"></i> Turn OFF';
-                    btn.classList.add('on');
-                } else {
-                    btn.innerHTML = '<i class="fas fa-power-off"></i> Turn ON';
-                    btn.classList.remove('on');
-                }
+            if (!response.ok) {
+                throw new Error(`Failed to toggle port ${port}`);
             }
         }
         
-        dashboard.showNotification(`All ports turned ${isOn ? 'ON' : 'OFF'}`, 'success');
+        dashboard.showNotification(`Master control turned ${isOn ? 'ON' : 'OFF'}`, 'success');
     } catch (error) {
         console.error('Error toggling master:', error);
         dashboard.showNotification('Failed to toggle master control', 'error');
-        // Revert master toggle state on error
+        
+        // Revert all toggles on error
         masterToggle.checked = !isOn;
+        for (let port = 1; port <= 2; port++) {
+            const toggle = document.getElementById(`toggle${port}`);
+            if (toggle) {
+                toggle.checked = !isOn;
+            }
+        }
     }
 }

@@ -42,9 +42,10 @@
                             <span class="status-indicator offline" id="status1">OFFLINE</span>
                         </div>
                         <div class="port-controls">
-                            <button class="toggle-btn" id="toggle1" onclick="togglePort(1)">
-                                <i class="fas fa-power-off"></i>
-                            </button>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle1" onchange="togglePort(1)">
+                                <span class="slider"></span>
+                            </label>
                         </div>
                     </div>
                     
@@ -87,9 +88,10 @@
                             <span class="status-indicator offline" id="status2">OFFLINE</span>
                         </div>
                         <div class="port-controls">
-                            <button class="toggle-btn" id="toggle2" onclick="togglePort(2)">
-                                <i class="fas fa-power-off"></i>
-                            </button>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle2" onchange="togglePort(2)">
+                                <span class="slider"></span>
+                            </label>
                         </div>
                     </div>
                     
@@ -132,9 +134,10 @@
                             <span class="status-indicator disabled" id="status3">DISABLED</span>
                         </div>
                         <div class="port-controls">
-                            <button class="toggle-btn disabled" id="toggle3" disabled>
-                                <i class="fas fa-power-off"></i>
-                            </button>
+                            <label class="toggle-switch disabled">
+                                <input type="checkbox" id="toggle3" disabled>
+                                <span class="slider"></span>
+                            </label>
                         </div>
                     </div>
                     
@@ -177,9 +180,10 @@
                             <span class="status-indicator disabled" id="status4">DISABLED</span>
                         </div>
                         <div class="port-controls">
-                            <button class="toggle-btn disabled" id="toggle4" disabled>
-                                <i class="fas fa-power-off"></i>
-                            </button>
+                            <label class="toggle-switch disabled">
+                                <input type="checkbox" id="toggle4" disabled>
+                                <span class="slider"></span>
+                            </label>
                         </div>
                     </div>
                     
