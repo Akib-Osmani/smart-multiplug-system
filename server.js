@@ -626,23 +626,59 @@ app.post('/api/toggle', async (req, res) => {
   }
 });
 
+// Master control endpoint
+app.post('/api/master-control', async (req, res) => {
+  try {
+    const { enabled } = req.body;
+    
+    // Store master control state in database
+    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('master_enabled', ?)", 
+           [enabled.toString()], (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      
+      // If master is disabled, turn off all relays
+      if (!enabled) {
+        for (let port = 1; port <= 2; port++) {
+          db.run(`INSERT OR REPLACE INTO realtime_data (port, voltage, current, power, status, relay_state) 
+                  VALUES (?, 0, 0, 0, 'offline', 'OFF')`, [port]);
+        }
+      }
+      
+      // Broadcast master control update
+      io.emit('masterUpdate', { enabled });
+      
+      res.json({ success: true, enabled });
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get relay status for ESP8266
 app.get('/api/relay-status', (req, res) => {
-    db.all(`SELECT port, relay_state FROM realtime_data WHERE port <= 4 ORDER BY port`, (err, rows) => {
-        if (err) {
-            return res.status(500).json({ error: 'Database error' });
-        }
+    // Get master control state
+    db.get("SELECT value FROM settings WHERE key = 'master_enabled'", (err, masterRow) => {
+        const masterEnabled = masterRow ? masterRow.value === 'true' : false;
         
-        const relays = [];
-        for(let i = 1; i <= 4; i++) {
-            const row = rows.find(r => r.port === i);
-            relays.push({
-                port: i,
-                state: row ? row.relay_state === 'ON' : false
+        db.all(`SELECT port, relay_state FROM realtime_data WHERE port <= 2 ORDER BY port`, (err, rows) => {
+            if (err) {
+                return res.status(500).json({ error: 'Database error' });
+            }
+            
+            const relays = [];
+            for(let i = 1; i <= 2; i++) {
+                const row = rows.find(r => r.port === i);
+                relays.push({
+                    port: i,
+                    state: row ? row.relay_state === 'ON' : false
+                });
+            }
+            
+            res.json({ 
+                master_enabled: masterEnabled,
+                relays 
             });
-        }
-        
-        res.json({ relays });
+        });
     });
 });
 
@@ -665,6 +701,34 @@ app.post('/api/toggle-master', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// Database viewer endpoint
+app.get('/api/database/:table', (req, res) => {
+  const { table } = req.params;
+  const allowedTables = ['realtime_data', 'daily_consumption', 'monthly_consumption', 'settings', 'alerts', 'peak_usage'];
+  
+  if (!allowedTables.includes(table)) {
+    return res.status(400).json({ error: 'Invalid table name' });
+  }
+  
+  db.all(`SELECT * FROM ${table} ORDER BY id DESC LIMIT 100`, (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ table, data: rows });
+  });
+});
+
+// Get all database tables
+app.get('/api/database', (req, res) => {
+  const tables = {
+    realtime_data: '/api/database/realtime_data',
+    daily_consumption: '/api/database/daily_consumption', 
+    monthly_consumption: '/api/database/monthly_consumption',
+    settings: '/api/database/settings',
+    alerts: '/api/database/alerts',
+    peak_usage: '/api/database/peak_usage'
+  };
+  res.json(tables);
 });
 
 // WebSocket connection handling

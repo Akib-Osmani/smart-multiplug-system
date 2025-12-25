@@ -269,8 +269,8 @@ class SmartMultiplugDashboard {
             }
         }
         
-        // Update master toggle state after all ports are updated
-        updateMasterToggleState();
+        // DO NOT auto-sync master toggle with individual ports
+        // Master acts as main power control - stays independent
     }
 
     // Add data to waveform arrays
@@ -870,8 +870,8 @@ async function togglePort(port) {
                 statusElement.className = 'status-indicator offline';
             }
             
-            // Update master toggle based on individual port states
-            updateMasterToggleState();
+            // DO NOT update master toggle automatically
+            // Master control is independent of individual port states
             
             dashboard.showNotification(`Port ${port} turned ${data.state}`, 'success');
         } else {
@@ -883,70 +883,53 @@ async function togglePort(port) {
     }
 }
 
-// Update master toggle state based on individual ports
+// Master toggle remains independent - no auto-sync with individual ports
 function updateMasterToggleState() {
-    const masterToggle = document.getElementById('masterToggle');
-    const toggle1 = document.getElementById('toggle1');
-    const toggle2 = document.getElementById('toggle2');
-    
-    // Master is ON if any active port is ON
-    const anyPortOn = toggle1.checked || toggle2.checked;
-    masterToggle.checked = anyPortOn;
+    // Removed auto-sync behavior - Master control now works like main electrical board switch
+    console.log('Master toggle operates independently of individual ports');
 }
 
-// Master toggle function
+// Master toggle function - Works like main electrical board switch
 async function toggleMaster() {
     const masterToggle = document.getElementById('masterToggle');
     const isOn = masterToggle.checked;
     
     try {
-        // If turning OFF master, turn OFF all ports first
+        // Send master control state to server
+        const response = await fetch('/api/master-control', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ enabled: isOn })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to update master control');
+        }
+        
+        // If turning OFF master, turn OFF all ports (safety feature)
         if (!isOn) {
             for (let port = 1; port <= 2; port++) {
                 const toggle = document.getElementById(`toggle${port}`);
+                const statusElement = document.getElementById(`status${port}`);
                 if (toggle) {
                     toggle.checked = false;
+                    statusElement.textContent = 'OFFLINE';
+                    statusElement.className = 'status-indicator offline';
                 }
             }
+            dashboard.showNotification('Master control turned OFF - All ports disabled', 'info');
+        } else {
+            // If turning ON master, just enable the system (don't auto-turn on ports)
+            dashboard.showNotification('Master control turned ON - Individual ports can now be controlled', 'success');
         }
         
-        // If turning ON master, just enable individual port controls
-        if (isOn) {
-            for (let port = 1; port <= 2; port++) {
-                const toggle = document.getElementById(`toggle${port}`);
-                if (toggle) {
-                    toggle.checked = true;
-                }
-            }
-        }
-        
-        // Send API requests
-        for (let port = 1; port <= 2; port++) {
-            const response = await fetch('/api/toggle-master', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ port, state: isOn ? 'ON' : 'OFF' })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`Failed to toggle port ${port}`);
-            }
-        }
-        
-        dashboard.showNotification(`Master control turned ${isOn ? 'ON' : 'OFF'}`, 'success');
     } catch (error) {
         console.error('Error toggling master:', error);
         dashboard.showNotification('Failed to toggle master control', 'error');
         
-        // Revert all toggles on error
+        // Revert master toggle on error
         masterToggle.checked = !isOn;
-        for (let port = 1; port <= 2; port++) {
-            const toggle = document.getElementById(`toggle${port}`);
-            if (toggle) {
-                toggle.checked = !isOn;
-            }
-        }
     }
 }
