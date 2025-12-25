@@ -427,31 +427,31 @@ async function getDashboardData() {
           if (err) return reject(err);
           
           const todayData = {};
-        let totalEnergy = 0, totalCost = 0, totalRuntime = 0;
-        
-        for (let i = 1; i <= 4; i++) {
-          const data = dailyRows.find(row => row.port === i);
-          todayData[`port${i}`] = data ? {
-            energy: parseFloat(data.energy_kwh.toFixed(2)),
-            cost: parseFloat(data.cost_bdt.toFixed(2)),
-            runtime: formatRuntime(data.runtime_minutes)
-          } : { energy: 0, cost: 0, runtime: '0h 0m' };
+          let totalEnergy = 0, totalCost = 0, totalRuntime = 0;
           
-          if (data) {
-            totalEnergy += data.energy_kwh;
-            totalCost += data.cost_bdt;
-            totalRuntime += data.runtime_minutes;
+          for (let i = 1; i <= 4; i++) {
+            const data = dailyRows.find(row => row.port === i);
+            todayData[`port${i}`] = data ? {
+              energy: parseFloat(data.energy_kwh.toFixed(2)),
+              cost: parseFloat(data.cost_bdt.toFixed(2)),
+              runtime: formatRuntime(data.runtime_minutes)
+            } : { energy: 0, cost: 0, runtime: '0h 0m' };
+            
+            if (data) {
+              totalEnergy += data.energy_kwh;
+              totalCost += data.cost_bdt;
+              totalRuntime += data.runtime_minutes;
+            }
           }
-        }
-        
-        todayData.total = {
-          energy: parseFloat(totalEnergy.toFixed(2)),
-          cost: parseFloat(totalCost.toFixed(2)),
-          runtime: formatRuntime(totalRuntime)
-        };
-        
-        // Get monthly data
-        db.all("SELECT * FROM monthly_consumption WHERE year = ? AND month = ?", 
+          
+          todayData.total = {
+            energy: parseFloat(totalEnergy.toFixed(2)),
+            cost: parseFloat(totalCost.toFixed(2)),
+            runtime: formatRuntime(totalRuntime)
+          };
+          
+          // Get monthly data
+          db.all("SELECT * FROM monthly_consumption WHERE year = ? AND month = ?", 
                [currentYear, currentMonth], (err, monthlyRows) => {
           if (err) return reject(err);
           
