@@ -1,5 +1,5 @@
-#include <ESP8266WiFi.h>
-#include <ESP8266HTTPClient.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 
@@ -8,14 +8,14 @@ const char* ssid = "Swadhin";
 const char* password = "Swadhin@aiub";
 
 // Server URLs
-const char* serverURL = "https://smart-multiplug-system-production.up.railway.app/api/data";
-const char* relayStatusURL = "https://smart-multiplug-system-production.up.railway.app/api/relay-status";
-const char* portLimitsURL = "https://smart-multiplug-system-production.up.railway.app/api/port-limits";
-const char* alertsURL = "https://smart-multiplug-system-production.up.railway.app/api/alerts";
-const char* optimizationURL = "https://smart-multiplug-system-production.up.railway.app/api/optimization";
+const char* serverURL = "https://power-consumption-dashboard.up.railway.app/api/data";
+const char* relayStatusURL = "https://power-consumption-dashboard.up.railway.app/api/relay-status";
+const char* portLimitsURL = "https://power-consumption-dashboard.up.railway.app/api/port-limits";
+const char* alertsURL = "https://power-consumption-dashboard.up.railway.app/api/alerts";
+const char* optimizationURL = "https://power-consumption-dashboard.up.railway.app/api/optimization";
 
-// Pin Definitions for 2 ports only (ESP-01 has limited pins)
-const int relayPins[2] = {0, 2}; // GPIO0, GPIO2
+// Pin Definitions for ESP32-C3 (2 ports)
+const int relayPins[2] = {2, 3}; // GPIO2, GPIO3
 bool relayStates[2] = {false, false};
 bool masterEnabled = false;
 
@@ -55,7 +55,7 @@ void setup() {
   Serial.begin(115200);
   delay(500);
   
-  Serial.println("\n=== Smart Multiplug (2 Ports) ESP-01 with Master Control ===");
+  Serial.println("\n=== Smart Multiplug (2 Ports) ESP32-C3 with Master Control ===");
   
   // Initialize relays
   for(int i = 0; i < 2; i++) {
@@ -86,7 +86,7 @@ void setup() {
   sessionStartTime = millis();
   lastEnergyUpdate = millis();
   
-  Serial.println("Arduino Ready! Real-time data mode with master control activated.");
+  Serial.println("ESP32-C3 Ready! Real-time data mode with master control activated.");
 }
 
 void loop() {
@@ -145,7 +145,7 @@ void sendConnectionStatus(bool connected) {
   client.setInsecure();
   
   HTTPClient http;
-  http.begin(client, "https://smart-multiplug-system-production.up.railway.app/api/arduino-status");
+  http.begin(client, "https://power-consumption-dashboard.up.railway.app/api/arduino-status");
   http.addHeader("Content-Type", "application/json");
   http.setTimeout(3000);
   
@@ -157,13 +157,13 @@ void sendConnectionStatus(bool connected) {
 }
 
 float readVoltage(int port) {
-  // Read voltage from ADC with proper scaling
+  // Read voltage from ADC with proper scaling for ESP32-C3
   int adcValue = analogRead(voltageSensorPin);
   float voltage = 0;
   
   if(relayStates[port-1] && masterEnabled) {
-    // Real voltage reading with calibration
-    voltage = (adcValue / 1024.0) * 3.3 * 100.0; // 100:1 voltage divider
+    // ESP32-C3 ADC is 12-bit (0-4095)
+    voltage = (adcValue / 4095.0) * 3.3 * 100.0; // 100:1 voltage divider
     voltage = 220 + (voltage - 220) * 0.1; // Scale around 220V
     voltage += random(-3, 4); // Real-world variation
     
@@ -437,7 +437,7 @@ void sendEmergencyAlert(int port, String reason, SensorData data) {
   client.setInsecure();
   
   HTTPClient http;
-  http.begin(client, "https://smart-multiplug-system-production.up.railway.app/api/emergency-alert");
+  http.begin(client, "https://power-consumption-dashboard.up.railway.app/api/emergency-alert");
   http.addHeader("Content-Type", "application/json");
   http.setTimeout(3000);
   

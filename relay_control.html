@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ESP32 Relay Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container { 
+            max-width: 400px; 
+            background: white; 
+            padding: 30px; 
+            border-radius: 15px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h1 { 
+            text-align: center; 
+            color: #333; 
+            margin-bottom: 30px;
+            font-size: 24px;
+        }
+        .relay-control { 
+            margin: 25px 0; 
+            padding: 20px; 
+            border: 2px solid #e0e0e0; 
+            border-radius: 10px;
+            background: #fafafa;
+        }
+        .relay-title { 
+            font-weight: bold; 
+            margin-bottom: 15px; 
+            font-size: 18px;
+            color: #555;
+        }
+        .status { 
+            padding: 8px 15px; 
+            border-radius: 20px; 
+            font-weight: bold; 
+            display: inline-block;
+            margin-bottom: 15px;
+            min-width: 50px;
+            text-align: center;
+        }
+        .status.on { 
+            background: #4CAF50; 
+            color: white; 
+            box-shadow: 0 2px 5px rgba(76, 175, 80, 0.3);
+        }
+        .status.off { 
+            background: #f44336; 
+            color: white; 
+            box-shadow: 0 2px 5px rgba(244, 67, 54, 0.3);
+        }
+        button { 
+            padding: 12px 25px; 
+            margin: 5px; 
+            border: none; 
+            border-radius: 25px; 
+            cursor: pointer; 
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        .btn-on { 
+            background: #4CAF50; 
+            color: white; 
+        }
+        .btn-off { 
+            background: #f44336; 
+            color: white; 
+        }
+        .btn-on:hover { 
+            background: #45a049; 
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+        }
+        .btn-off:hover { 
+            background: #da190b; 
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(244, 67, 54, 0.4);
+        }
+        .connection-status {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .connected { background: #d4edda; color: #155724; }
+        .disconnected { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔌 ESP32 Relay Control</h1>
+        
+        <div class="connection-status" id="connectionStatus">
+            Connecting...
+        </div>
+        
+        <div class="relay-control">
+            <div class="relay-title">⚡ Relay 1</div>
+            <div class="status" id="status1">OFF</div>
+            <div>
+                <button class="btn-on" onclick="controlRelay(1, 'on')">Turn ON</button>
+                <button class="btn-off" onclick="controlRelay(1, 'off')">Turn OFF</button>
+            </div>
+        </div>
+        
+        <div class="relay-control">
+            <div class="relay-title">⚡ Relay 2</div>
+            <div class="status" id="status2">OFF</div>
+            <div>
+                <button class="btn-on" onclick="controlRelay(2, 'on')">Turn ON</button>
+                <button class="btn-off" onclick="controlRelay(2, 'off')">Turn OFF</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const ESP32_IP = 'http://192.168.1.100'; // Change to your ESP32 IP
+        let isConnected = false;
+        
+        function controlRelay(relay, action) {
+            fetch(`${ESP32_IP}/relay${relay}/${action}`)
+                .then(response => {
+                    if (response.ok) {
+                        isConnected = true;
+                        updateConnectionStatus();
+                        return response.text();
+                    }
+                    throw new Error('Network response was not ok');
+                })
+                .then(data => {
+                    console.log(data);
+                    updateStatus();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    isConnected = false;
+                    updateConnectionStatus();
+                });
+        }
+        
+        function updateStatus() {
+            fetch(`${ESP32_IP}/status`)
+                .then(response => {
+                    if (response.ok) {
+                        isConnected = true;
+                        updateConnectionStatus();
+                        return response.json();
+                    }
+                    throw new Error('Network response was not ok');
+                })
+                .then(data => {
+                    document.getElementById('status1').textContent = data.relay1 ? 'ON' : 'OFF';
+                    document.getElementById('status1').className = 'status ' + (data.relay1 ? 'on' : 'off');
+                    document.getElementById('status2').textContent = data.relay2 ? 'ON' : 'OFF';
+                    document.getElementById('status2').className = 'status ' + (data.relay2 ? 'on' : 'off');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    isConnected = false;
+                    updateConnectionStatus();
+                });
+        }
+        
+        function updateConnectionStatus() {
+            const statusElement = document.getElementById('connectionStatus');
+            if (isConnected) {
+                statusElement.textContent = '✅ Connected to ESP32';
+                statusElement.className = 'connection-status connected';
+            } else {
+                statusElement.textContent = '❌ Disconnected from ESP32';
+                statusElement.className = 'connection-status disconnected';
+            }
+        }
+        
+        // Update status every 2 seconds
+        setInterval(updateStatus, 2000);
+        
+        // Initial status check
+        updateStatus();
+    </script>
+</body>
+</html>
