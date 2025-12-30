@@ -260,10 +260,8 @@ class SmartMultiplugDashboard {
                 statusElement.textContent = actualStatus.toUpperCase();
                 statusElement.className = `status-indicator ${actualStatus}`;
                 
-                // Only update toggle if web toggle doesn't have priority
-                if (toggle && !toggle.disabled && !this.webTogglePriority[`port${port}`]) {
-                    toggle.checked = (actualStatus === 'online');
-                }
+                // NEVER update toggle from sync - only manual control
+                // Toggle is controlled only by user clicks and ESP32 SYNC commands
             }
 
             // Always update metrics
@@ -845,13 +843,12 @@ window.addEventListener('offline', () => {
     }
 });
 
-// Toggle port function with web priority
+// Toggle port function - direct control only
 async function togglePort(port) {
     const toggle = document.getElementById(`toggle${port}`);
     const statusElement = document.getElementById(`status${port}`);
     
-    // Set web toggle priority to prevent sync override
-    dashboard.webTogglePriority[`port${port}`] = true;
+    // Disable toggle briefly to prevent double-clicks
     toggle.disabled = true;
     
     try {
@@ -864,7 +861,7 @@ async function togglePort(port) {
         });
 
         if (response.ok) {
-            dashboard.showNotification(`Port ${port} toggled`, 'success');
+            dashboard.showNotification(`Port ${port} ${toggle.checked ? 'ON' : 'OFF'}`, 'success');
             
             // Update status immediately based on toggle state
             const newStatus = toggle.checked ? 'online' : 'offline';
@@ -880,11 +877,10 @@ async function togglePort(port) {
         // Revert toggle on error
         toggle.checked = !toggle.checked;
     } finally {
-        // Re-enable toggle and clear priority after 2 seconds
+        // Re-enable toggle after 1 second
         setTimeout(() => {
             toggle.disabled = false;
-            dashboard.webTogglePriority[`port${port}`] = false;
-        }, 2000);
+        }, 1000);
     }
 }
 
