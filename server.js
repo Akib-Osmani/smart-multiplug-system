@@ -943,3 +943,29 @@ process.on('SIGINT', () => {
     });
   });
 });
+// Control endpoint for ESP32 to get relay commands
+app.get('/api/control', (req, res) => {
+  // Get master control state
+  db.get("SELECT value FROM settings WHERE key = 'master_enabled'", (err, masterRow) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    
+    const masterEnabled = masterRow ? masterRow.value === 'true' : true;
+    
+    // Get relay states for ports 1 and 2
+    db.all("SELECT port, relay_state FROM realtime_data WHERE port <= 2 ORDER BY port", (err, rows) => {
+      if (err) return res.status(500).json({ error: 'Database error' });
+      
+      const response = {
+        master: masterEnabled
+      };
+      
+      // Add relay states
+      for(let i = 1; i <= 2; i++) {
+        const row = rows.find(r => r.port === i);
+        response[`relay${i}`] = row && row.relay_state === 'ON' ? 'ON' : 'OFF';
+      }
+      
+      res.json(response);
+    });
+  });
+});

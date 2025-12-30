@@ -5,10 +5,11 @@
 
 // WiFi Configuration
 const char* ssid = "akib";
-const char* password = "012345678";
+const char* password = "0123456789";
 
 // Server URLs
 const char* serverURL = "https://power-consumption-dashboard.up.railway.app/api/data";
+const char* controlURL = "https://power-consumption-dashboard.up.railway.app/api/control";
 
 // Pin Definitions for ESP32-C3 (2 ports)
 const int relayPins[2] = {2, 3}; // GPIO2, GPIO3
@@ -67,11 +68,18 @@ void setup() {
 
 void loop() {
   static unsigned long lastSensorRead = 0;
+  static unsigned long lastControlCheck = 0;
   
   // Send real sensor data every 5 seconds
   if(millis() - lastSensorRead >= 5000) {
     sendRealSensorData();
     lastSensorRead = millis();
+  }
+  
+  // Check for control commands every 2 seconds
+  if(millis() - lastControlCheck >= 2000) {
+    checkControlCommands();
+    lastControlCheck = millis();
   }
   
   // Update energy calculations every 10 seconds
@@ -86,24 +94,16 @@ void loop() {
     command.trim();
     
     if(command == "1ON") {
-      relayStates[0] = true;
-      digitalWrite(relayPins[0], HIGH);
-      Serial.println("Relay 1: ON");
+      setRelay(1, true);
     }
     else if(command == "1OFF") {
-      relayStates[0] = false;
-      digitalWrite(relayPins[0], LOW);
-      Serial.println("Relay 1: OFF");
+      setRelay(1, false);
     }
     else if(command == "2ON") {
-      relayStates[1] = true;
-      digitalWrite(relayPins[1], HIGH);
-      Serial.println("Relay 2: ON");
+      setRelay(2, true);
     }
     else if(command == "2OFF") {
-      relayStates[1] = false;
-      digitalWrite(relayPins[1], LOW);
-      Serial.println("Relay 2: OFF");
+      setRelay(2, false);
     }
     else if(command == "STATUS") {
       Serial.printf("Relay 1: %s, Relay 2: %s\n", 
@@ -111,6 +111,55 @@ void loop() {
                    relayStates[1] ? "ON" : "OFF");
     }
   }
+}
+
+void setRelay(int port, bool state) {
+  if(port >= 1 && port <= 2) {
+    relayStates[port-1] = state;
+    digitalWrite(relayPins[port-1], state ? HIGH : LOW);
+    Serial.printf("Relay %d: %s\n", port, state ? "ON" : "OFF");
+  }
+}
+
+void checkControlCommands() {
+  WiFiClientSecure client;
+  client.setInsecure();
+  
+  HTTPClient http;
+  http.begin(client, controlURL);
+  http.setTimeout(2000);
+  
+  int responseCode = http.GET();
+  
+  if(responseCode == 200) {
+    String response = http.getString();
+    
+    // Parse JSON response
+    DynamicJsonDocument doc(1024);
+    deserializeJson(doc, response);
+    
+    // Check for relay commands
+    if(doc.containsKey("relay1")) {
+      bool state = doc["relay1"].as<String>() == "ON";
+      if(relayStates[0] != state) {
+        setRelay(1, state);
+      }
+    }
+    
+    if(doc.containsKey("relay2")) {
+      bool state = doc["relay2"].as<String>() == "ON";
+      if(relayStates[1] != state) {
+        setRelay(2, state);
+      }
+    }
+    
+    if(doc.containsKey("master")) {
+      masterEnabled = doc["master"].as<bool>();
+      Serial.printf("Master: %s\n", masterEnabled ? "ENABLED" : "DISABLED");
+    }
+  }
+  
+  http.end();
 }
 
 float readVoltage(int port) {
