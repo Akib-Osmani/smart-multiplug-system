@@ -507,8 +507,9 @@ async function getDashboardData() {
         voltage: data.voltage,
         current: data.current,
         power: data.power,
-        status: data.status
-      } : { voltage: 0, current: 0, power: 0, status: 'offline' };
+        status: data.status,
+        relay_state: data.relay_state || 'OFF'
+      } : { voltage: 0, current: 0, power: 0, status: 'offline', relay_state: 'OFF' };
     }
     
     const dailyRows = await new Promise((resolve, reject) => {

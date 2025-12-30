@@ -240,7 +240,7 @@ class SmartMultiplugDashboard {
         this.addUpdateAnimation();
     }
 
-    // Update real-time status for all ports - simplified
+    // Update real-time status for all ports - toggle independent of power readings
     updateRealtimeStatus(realtimeData) {
         for (let port = 1; port <= 4; port++) {
             const portData = realtimeData[`port${port}`];
@@ -249,20 +249,21 @@ class SmartMultiplugDashboard {
             const statusElement = document.getElementById(`status${port}`);
             const toggle = document.getElementById(`toggle${port}`);
             
-            // Determine actual status based on power and voltage
+            // Status based on power readings for display only
             let actualStatus = 'offline';
             if (portData.power > 0 && portData.voltage > 0) {
                 actualStatus = 'online';
             }
             
-            // Update status and toggle for active ports - respect user control priority
+            // Update status and toggle for active ports
             if (port <= 2) {
                 statusElement.textContent = actualStatus.toUpperCase();
                 statusElement.className = `status-indicator ${actualStatus}`;
                 
-                // Only sync toggle state if user is not currently controlling it
-                if (toggle && !this.toggleLocked[`port${port}`]) {
-                    toggle.checked = (actualStatus === 'online');
+                // Toggle ONLY follows database relay_state, NOT power readings
+                // Only sync if user is not currently controlling it
+                if (toggle && !this.toggleLocked[`port${port}`] && portData.relay_state !== undefined) {
+                    toggle.checked = (portData.relay_state === 'ON');
                 }
             }
 
