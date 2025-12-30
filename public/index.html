@@ -25,13 +25,6 @@
         <section class="realtime-section">
             <div class="section-header">
                 <h2><i class="fas fa-bolt"></i> Real-time Status</h2>
-                <div class="master-toggle">
-                    <span class="toggle-label">Master Control</span>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="masterToggle" onchange="toggleMaster()">
-                        <span class="slider"></span>
-                    </label>
-                </div>
             </div>
             <div class="ports-grid">
                 <!-- Port 1 -->
@@ -360,9 +353,6 @@
                 <button class="control-btn export-btn " onclick="exportPDF()">
                     <i class="fas fa-file-pdf"></i> Export PDF
                 </button>
-                <!-- <button class="control-btn reset-btn" onclick="resetDailyData()">
-                    <i class="fas fa-refresh"></i> Reset Daily -->
-                </button>
                 <button class="control-btn settings-btn" onclick="openSettings()">
                     <i class="fas fa-cog"></i> Settings
                 </button>
@@ -405,90 +395,6 @@
                         <div class="input-group">
                             <input type="number" id="costThresholdInput" step="10" min="0" value="100" class="settings-input">
                             <button onclick="updateCostThreshold()" class="settings-btn">Update</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Port Safety Limits -->
-                <div class="settings-group">
-                    <h4><i class="fas fa-shield-alt"></i> Port Safety Limits (Auto Shutoff)</h4>
-                    <div class="port-limits">
-                        <div class="port-limit-section">
-                            <h5>Port 1 Limits</h5>
-                            <div class="limit-inputs">
-                                <div class="limit-item">
-                                    <label>Max Voltage (V):</label>
-                                    <input type="number" id="port1VoltageLimit" step="1" min="0" value="240" class="settings-input">
-                                </div>
-                                <div class="limit-item">
-                                    <label>Max Current (A):</label>
-                                    <input type="number" id="port1CurrentLimit" step="0.1" min="0" value="10" class="settings-input">
-                                </div>
-                                <div class="limit-item">
-                                    <label>Max Power (W):</label>
-                                    <input type="number" id="port1PowerLimit" step="10" min="0" value="2000" class="settings-input">
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="port-limit-section">
-                            <h5>Port 2 Limits</h5>
-                            <div class="limit-inputs">
-                                <div class="limit-item">
-                                    <label>Max Voltage (V):</label>
-                                    <input type="number" id="port2VoltageLimit" step="1" min="0" value="240" class="settings-input">
-                                </div>
-                                <div class="limit-item">
-                                    <label>Max Current (A):</label>
-                                    <input type="number" id="port2CurrentLimit" step="0.1" min="0" value="10" class="settings-input">
-                                </div>
-                                <div class="limit-item">
-                                    <label>Max Power (W):</label>
-                                    <input type="number" id="port2PowerLimit" step="10" min="0" value="2000" class="settings-input">
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="port-limit-section disabled">
-                            <h5>Port 3 Limits <span class="disabled-label">(Disabled)</span></h5>
-                            <div class="limit-inputs">
-                                <div class="limit-item">
-                                    <label>Max Voltage (V):</label>
-                                    <input type="number" id="port3VoltageLimit" step="1" min="0" value="240" class="settings-input" disabled>
-                                </div>
-                                <div class="limit-item">
-                                    <label>Max Current (A):</label>
-                                    <input type="number" id="port3CurrentLimit" step="0.1" min="0" value="10" class="settings-input" disabled>
-                                </div>
-                                <div class="limit-item">
-                                    <label>Max Power (W):</label>
-                                    <input type="number" id="port3PowerLimit" step="10" min="0" value="2000" class="settings-input" disabled>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="port-limit-section disabled">
-                            <h5>Port 4 Limits <span class="disabled-label">(Disabled)</span></h5>
-                            <div class="limit-inputs">
-                                <div class="limit-item">
-                                    <label>Max Voltage (V):</label>
-                                    <input type="number" id="port4VoltageLimit" step="1" min="0" value="240" class="settings-input" disabled>
-                                </div>
-                                <div class="limit-item">
-                                    <label>Max Current (A):</label>
-                                    <input type="number" id="port4CurrentLimit" step="0.1" min="0" value="10" class="settings-input" disabled>
-                                </div>
-                                <div class="limit-item">
-                                    <label>Max Power (W):</label>
-                                    <input type="number" id="port4PowerLimit" step="10" min="0" value="2000" class="settings-input" disabled>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="setting-item">
-                            <button onclick="updatePortLimits()" class="settings-btn">
-                                <i class="fas fa-shield-alt"></i> Update All Port Limits
-                            </button>
                         </div>
                     </div>
                 </div>

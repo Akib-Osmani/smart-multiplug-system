@@ -8,7 +8,6 @@ const fs = require('fs');
 const moment = require('moment');
 const cron = require('node-cron');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
-// const puppeteer = require('puppeteer');
 
 // Server initialization
 const app = express();
@@ -30,14 +29,14 @@ const io = socketIo(server, {
 
 // Configuration constants
 const PORT = process.env.PORT || 3000;
-const DEFAULT_ELECTRICITY_RATE = parseFloat(process.env.DEFAULT_ELECTRICITY_RATE) || 8.0; // BDT per kWh
-const UPDATE_INTERVAL = parseInt(process.env.UPDATE_INTERVAL) || 60000; // 1 minute in milliseconds
+const DEFAULT_ELECTRICITY_RATE = parseFloat(process.env.DEFAULT_ELECTRICITY_RATE) || 8.0;
+const UPDATE_INTERVAL = parseInt(process.env.UPDATE_INTERVAL) || 60000;
 const PEAK_HOURS = { 
   start: parseInt(process.env.PEAK_START_HOUR) || 18, 
   end: parseInt(process.env.PEAK_END_HOUR) || 23 
-}; // 6 PM to 11 PM
-const HIGH_USAGE_THRESHOLD = parseInt(process.env.HIGH_USAGE_THRESHOLD) || 1000; // Watts
-const DAILY_COST_ALERT_THRESHOLD = parseInt(process.env.DAILY_COST_ALERT_THRESHOLD) || 100; // BDT
+};
+const HIGH_USAGE_THRESHOLD = parseInt(process.env.HIGH_USAGE_THRESHOLD) || 1000;
+const DAILY_COST_ALERT_THRESHOLD = parseInt(process.env.DAILY_COST_ALERT_THRESHOLD) || 100;
 
 // Middleware
 app.use(cors());
@@ -48,7 +47,6 @@ app.use(express.static('public'));
 const db = new sqlite3.Database('./multiplug.db', (err) => {
   if (err) {
     console.error('Error opening database:', err.message);
-    // Graceful shutdown instead of abrupt exit
     setTimeout(() => {
       console.error('Database connection failed, shutting down...');
       process.exit(1);
@@ -58,10 +56,8 @@ const db = new sqlite3.Database('./multiplug.db', (err) => {
   console.log('Connected to SQLite database');
 });
 
-// Handle database errors with recovery
 db.on('error', (err) => {
   console.error('Database error:', err.message);
-  // Attempt to reconnect or alert administrators
   if (err.code === 'SQLITE_BUSY' || err.code === 'SQLITE_LOCKED') {
     console.log('Database busy, retrying in 1 second...');
     setTimeout(() => {
@@ -73,7 +69,6 @@ db.on('error', (err) => {
 // Database schema creation
 function initializeDatabase() {
   return new Promise((resolve, reject) => {
-    // Real-time data table
     db.run(`CREATE TABLE IF NOT EXISTS realtime_data (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       port INTEGER NOT NULL UNIQUE,
@@ -86,7 +81,6 @@ function initializeDatabase() {
     )`, (err) => {
       if (err) return reject(err);
       
-      // Daily consumption table
       db.run(`CREATE TABLE IF NOT EXISTS daily_consumption (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date DATE NOT NULL,
@@ -99,7 +93,6 @@ function initializeDatabase() {
       )`, (err) => {
         if (err) return reject(err);
         
-        // Continue with other tables...
         createRemainingTables(resolve, reject);
       });
     });
@@ -107,7 +100,6 @@ function initializeDatabase() {
 }
 
 function createRemainingTables(resolve, reject) {
-  // Monthly consumption table
   db.run(`CREATE TABLE IF NOT EXISTS monthly_consumption (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     year INTEGER NOT NULL,
@@ -119,7 +111,6 @@ function createRemainingTables(resolve, reject) {
   )`, (err) => {
     if (err) return reject(err);
     
-    // Settings table
     db.run(`CREATE TABLE IF NOT EXISTS settings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       key TEXT UNIQUE NOT NULL,
@@ -127,7 +118,6 @@ function createRemainingTables(resolve, reject) {
     )`, (err) => {
       if (err) return reject(err);
       
-      // Alerts table
       db.run(`CREATE TABLE IF NOT EXISTS alerts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         type TEXT NOT NULL,
@@ -139,7 +129,6 @@ function createRemainingTables(resolve, reject) {
       )`, (err) => {
         if (err) return reject(err);
         
-        // Peak hours usage table
         db.run(`CREATE TABLE IF NOT EXISTS peak_usage (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           date DATE NOT NULL,
@@ -151,7 +140,6 @@ function createRemainingTables(resolve, reject) {
         )`, (err) => {
           if (err) return reject(err);
           
-          // Initialize default settings
           db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES 
             ('electricity_rate_bdt', '${DEFAULT_ELECTRICITY_RATE}'),
             ('peak_start_hour', '${PEAK_HOURS.start}'),
@@ -191,37 +179,52 @@ function isPeakHour(hour) {
   return hour >= PEAK_HOURS.start && hour <= PEAK_HOURS.end;
 }
 
-// Database operations
-async function updateRealtimeData(port, voltage, current, power) {
+// FIXED: Database operations that preserve relay state
+async function updateRealtimeData(port, voltage, current, power, preserveRelayState = true) {
   const status = power > 0 ? 'online' : 'offline';
   
   return new Promise((resolve, reject) => {
-    db.run(`INSERT OR REPLACE INTO realtime_data (port, voltage, current, power, status, timestamp) 
-            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`, 
-            [port, voltage, current, power, status], 
-            (err) => {
-      if (err) return reject(err);
-      resolve();
-    });
+    if (preserveRelayState) {
+      // Get existing relay state first, then update only sensor data
+      db.get("SELECT relay_state FROM realtime_data WHERE port = ?", [port], (err, row) => {
+        if (err) return reject(err);
+        
+        const existingRelayState = row ? row.relay_state : 'OFF';
+        
+        db.run(`INSERT OR REPLACE INTO realtime_data (port, voltage, current, power, status, relay_state, timestamp) 
+                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`, 
+                [port, voltage, current, power, status, existingRelayState], 
+                (err) => {
+          if (err) return reject(err);
+          resolve();
+        });
+      });
+    } else {
+      // For manual relay control - don't preserve relay state
+      db.run(`INSERT OR REPLACE INTO realtime_data (port, voltage, current, power, status, timestamp) 
+              VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`, 
+              [port, voltage, current, power, status], 
+              (err) => {
+        if (err) return reject(err);
+        resolve();
+      });
+    }
   });
 }
 
 async function updateDailyConsumption(port, powerWatts) {
   const today = moment().format('YYYY-MM-DD');
-  const intervalMinutes = UPDATE_INTERVAL / 60000; // Convert to minutes
+  const intervalMinutes = UPDATE_INTERVAL / 60000;
   const energyKwh = calculateEnergyKwh(powerWatts, intervalMinutes);
   const rate = await getCurrentElectricityRate();
   const costBdt = energyKwh * rate;
-  const currentHour = moment().hour();
   
   return new Promise((resolve, reject) => {
-    // Get existing record or create new one
     db.get("SELECT * FROM daily_consumption WHERE date = ? AND port = ?", 
            [today, port], (err, row) => {
       if (err) return reject(err);
       
       if (row) {
-        // Update existing record
         const newEnergy = row.energy_kwh + energyKwh;
         const newCost = row.cost_bdt + costBdt;
         const newRuntime = powerWatts > 0 ? row.runtime_minutes + 1 : row.runtime_minutes;
@@ -235,7 +238,6 @@ async function updateDailyConsumption(port, powerWatts) {
           resolve();
         });
       } else {
-        // Create new record
         db.run(`INSERT INTO daily_consumption 
                 (date, port, energy_kwh, cost_bdt, runtime_minutes, peak_usage)
                 VALUES (?, ?, ?, ?, ?, ?)`,
@@ -258,7 +260,6 @@ async function updateMonthlyConsumption(port, energyKwh, costBdt) {
       if (err) return reject(err);
       
       if (row) {
-        // Update existing record
         db.run(`UPDATE monthly_consumption 
                 SET energy_kwh = energy_kwh + ?, cost_bdt = cost_bdt + ?
                 WHERE year = ? AND month = ? AND port = ?`,
@@ -267,7 +268,6 @@ async function updateMonthlyConsumption(port, energyKwh, costBdt) {
           resolve();
         });
       } else {
-        // Create new record
         db.run(`INSERT INTO monthly_consumption (year, month, port, energy_kwh, cost_bdt)
                 VALUES (?, ?, ?, ?, ?)`,
                 [year, month, port, energyKwh, costBdt], (err) => {
@@ -283,7 +283,6 @@ async function updateMonthlyConsumption(port, energyKwh, costBdt) {
 async function checkAndCreateAlerts(port, power, dailyCost) {
   const alerts = [];
   
-  // High usage alert
   if (power > HIGH_USAGE_THRESHOLD) {
     alerts.push({
       type: 'HIGH_USAGE',
@@ -293,7 +292,6 @@ async function checkAndCreateAlerts(port, power, dailyCost) {
     });
   }
   
-  // Daily cost alert
   if (dailyCost > DAILY_COST_ALERT_THRESHOLD) {
     alerts.push({
       type: 'HIGH_COST',
@@ -303,7 +301,6 @@ async function checkAndCreateAlerts(port, power, dailyCost) {
     });
   }
   
-  // Peak hour usage alert
   const currentHour = moment().hour();
   if (isPeakHour(currentHour) && power > 500) {
     alerts.push({
@@ -314,7 +311,6 @@ async function checkAndCreateAlerts(port, power, dailyCost) {
     });
   }
   
-  // Insert alerts into database with proper error handling
   const insertPromises = alerts.map(alert => {
     return new Promise((resolve, reject) => {
       db.run(`INSERT INTO alerts (type, message, port, severity) 
@@ -353,7 +349,6 @@ async function updatePeakUsage(port, power) {
       if (err) return reject(err);
       
       if (row) {
-        // Update if current power is higher
         if (power > row.peak_power) {
           db.run(`UPDATE peak_usage 
                   SET peak_power = ?, peak_time = ?, duration_minutes = duration_minutes + 1
@@ -363,7 +358,6 @@ async function updatePeakUsage(port, power) {
             resolve();
           });
         } else {
-          // Just increment duration
           db.run(`UPDATE peak_usage 
                   SET duration_minutes = duration_minutes + 1
                   WHERE date = ? AND port = ?`,
@@ -373,7 +367,6 @@ async function updatePeakUsage(port, power) {
           });
         }
       } else {
-        // Create new peak usage record
         db.run(`INSERT INTO peak_usage (date, port, peak_power, peak_time, duration_minutes)
                 VALUES (?, ?, ?, ?, ?)`,
                 [today, port, power, currentTime, 1], (err) => {
@@ -390,22 +383,18 @@ function generateOptimizationSuggestions(dashboardData) {
   const suggestions = [];
   const { realtime, today, monthly } = dashboardData;
   
-  // Constants for calculations
   const EFFICIENCY_FACTOR = 0.3;
   const STANDBY_REDUCTION = 0.2;
   const HOURS_PER_DAY = 24;
   const DAYS_PER_MONTH = 30;
   const DEFAULT_RATE = 8;
   
-  // High consumption device suggestions
   Object.keys(realtime).forEach(portKey => {
-    if (portKey === 'masterEnabled') return; // Skip master control property
-    
     const port = portKey.replace('port', '');
     const realtimeData = realtime[portKey];
     const todayData = today[portKey];
     
-    if (!realtimeData || !todayData) return; // Skip if data is missing
+    if (!realtimeData || !todayData) return;
     
     const power = realtimeData.power || 0;
     const dailyEnergy = todayData.energy || 0;
@@ -429,16 +418,13 @@ function generateOptimizationSuggestions(dashboardData) {
     }
   });
   
-  // Peak hour usage suggestions
   const currentHour = moment().hour();
   if (isPeakHour(currentHour)) {
     Object.keys(realtime).forEach(portKey => {
-      if (portKey === 'masterEnabled') return; // Skip master control property
-      
       const port = portKey.replace('port', '');
       const realtimeData = realtime[portKey];
       
-      if (!realtimeData) return; // Skip if data is missing
+      if (!realtimeData) return;
       
       const power = realtimeData.power || 0;
       
@@ -469,7 +455,6 @@ async function exportToCSV(startDate, endDate) {
     db.all(query, [startDate, endDate], (err, rows) => {
       if (err) return reject(err);
       
-      // Ensure exports directory exists first
       if (!fs.existsSync('./exports')) {
         fs.mkdirSync('./exports', { recursive: true });
       }
@@ -497,7 +482,6 @@ async function exportToCSV(startDate, endDate) {
   });
 }
 
-// PDF export temporarily disabled for hosting
 async function exportToPDF(dashboardData) {
   throw new Error('PDF export is temporarily disabled. Use CSV export instead.');
 }
@@ -509,15 +493,6 @@ async function getDashboardData() {
   const currentMonth = moment().month() + 1;
   
   try {
-    const masterRow = await new Promise((resolve, reject) => {
-      db.get("SELECT value FROM settings WHERE key = 'master_enabled'", (err, row) => {
-        if (err) return reject(err);
-        resolve(row);
-      });
-    });
-    
-    const masterEnabled = masterRow ? masterRow.value === 'true' : false;
-    
     const realtimeRows = await new Promise((resolve, reject) => {
       db.all("SELECT * FROM realtime_data ORDER BY port", (err, rows) => {
         if (err) return reject(err);
@@ -535,7 +510,6 @@ async function getDashboardData() {
         status: data.status
       } : { voltage: 0, current: 0, power: 0, status: 'offline' };
     }
-    realtime.masterEnabled = masterEnabled;
     
     const dailyRows = await new Promise((resolve, reject) => {
       db.all("SELECT * FROM daily_consumption WHERE date = ?", [today], (err, rows) => {
@@ -632,6 +606,7 @@ app.get('/api/data', async (req, res) => {
   }
 });
 
+// FIXED: ESP32 data endpoint that preserves relay states
 app.post('/api/data', async (req, res) => {
   try {
     const { port, voltage, current, power } = req.body;
@@ -640,7 +615,8 @@ app.post('/api/data', async (req, res) => {
       return res.status(400).json({ error: 'Invalid port number' });
     }
     
-    await updateRealtimeData(port, voltage, current, power);
+    // IMPORTANT: Preserve relay state when updating sensor data
+    await updateRealtimeData(port, voltage, current, power, true);
     await updateDailyConsumption(port, power);
     
     const energyKwh = calculateEnergyKwh(power, 1);
@@ -650,7 +626,6 @@ app.post('/api/data', async (req, res) => {
     await updateMonthlyConsumption(port, energyKwh, costBdt);
     await updatePeakUsage(port, power);
     
-    // Check for alerts
     const today = moment().format('YYYY-MM-DD');
     const dailyCost = await new Promise((resolve) => {
       db.get("SELECT cost_bdt FROM daily_consumption WHERE date = ? AND port = ?",
@@ -670,30 +645,19 @@ app.post('/api/data', async (req, res) => {
   }
 });
 
-// Control endpoint for ESP32 (consolidated)
+// Control endpoint for ESP32
 app.get('/api/control', (req, res) => {
-  // Get master control state
-  db.get("SELECT value FROM settings WHERE key = 'master_enabled'", (err, masterRow) => {
+  db.all("SELECT port, relay_state FROM realtime_data WHERE port <= 2 ORDER BY port", (err, rows) => {
     if (err) return res.status(500).json({ error: 'Database error' });
     
-    const masterEnabled = masterRow ? masterRow.value === 'true' : true;
+    const response = {};
     
-    // Get relay states for ports 1 and 2
-    db.all("SELECT port, relay_state FROM realtime_data WHERE port <= 2 ORDER BY port", (err, rows) => {
-      if (err) return res.status(500).json({ error: 'Database error' });
-      
-      const response = {
-        master: masterEnabled
-      };
-      
-      // Add relay states
-      for(let i = 1; i <= 2; i++) {
-        const row = rows.find(r => r.port === i);
-        response[`relay${i}`] = row && row.relay_state === 'ON' ? 'ON' : 'OFF';
-      }
-      
-      res.json(response);
-    });
+    for(let i = 1; i <= 2; i++) {
+      const row = rows.find(r => r.port === i);
+      response[`relay${i}`] = row && row.relay_state === 'ON' ? 'ON' : 'OFF';
+    }
+    
+    res.json(response);
   });
 });
 
@@ -752,59 +716,35 @@ app.post('/api/reset-daily', (req, res) => {
   });
 });
 
-// Toggle relay endpoint
+// Toggle relay endpoint - for manual control only
 app.post('/api/toggle', async (req, res) => {
   try {
     const { port } = req.body;
     
-    // Get current relay state
     db.get("SELECT relay_state FROM realtime_data WHERE port = ?", [port], (err, row) => {
       if (err) return res.status(500).json({ error: err.message });
       
       const currentState = row ? row.relay_state : 'OFF';
       const newState = currentState === 'ON' ? 'OFF' : 'ON';
       
-      // Update or insert relay state in database
-      db.run(`INSERT OR REPLACE INTO realtime_data (port, voltage, current, power, status, relay_state) 
-              VALUES (?, 0, 0, 0, 'offline', ?)`, 
-             [port, newState], (err) => {
-        if (err) return res.status(500).json({ error: err.message });
-        
-        // Broadcast update to all clients
-        io.emit('relayUpdate', { port, state: newState });
-        
-        res.json({ success: true, port, state: newState });
-      });
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Master control endpoint
-app.post('/api/master-control', async (req, res) => {
-  try {
-    const { enabled } = req.body;
-    
-    // Store master control state in database
-    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('master_enabled', ?)", 
-           [enabled.toString()], (err) => {
-      if (err) return res.status(500).json({ error: err.message });
-      
-      // If master is disabled, turn off all relays
-      if (!enabled) {
-        for (let port = 1; port <= 2; port++) {
+      // Update only relay state, preserve other data
+      db.run(`UPDATE realtime_data SET relay_state = ? WHERE port = ?`, 
+             [newState, port], (err) => {
+        if (err) {
+          // If no existing record, create one
           db.run(`INSERT OR REPLACE INTO realtime_data (port, voltage, current, power, status, relay_state) 
-                  VALUES (?, 0, 0, 0, 'offline', 'OFF')`, [port], (err) => {
-            if (err) console.error('Database error:', err);
+                  VALUES (?, 0, 0, 0, 'offline', ?)`, 
+                 [port, newState], (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            
+            io.emit('relayUpdate', { port, state: newState });
+            res.json({ success: true, port, state: newState });
           });
+        } else {
+          io.emit('relayUpdate', { port, state: newState });
+          res.json({ success: true, port, state: newState });
         }
-      }
-      
-      // Broadcast master control update
-      io.emit('masterUpdate', { enabled });
-      
-      res.json({ success: true, enabled });
+      });
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -833,7 +773,6 @@ app.get('/api/database/:table', (req, res) => {
   });
 });
 
-// Get all database tables
 app.get('/api/database', (req, res) => {
   const tables = {
     realtime_data: '/api/database/realtime_data',
@@ -862,15 +801,13 @@ io.on('connection', async (socket) => {
   });
 });
 
-// Daily cleanup task (runs at midnight)
+// Daily cleanup task
 cron.schedule('0 0 * * *', () => {
   console.log('Running daily cleanup...');
   
-  // Clean old alerts (older than 7 days)
   const weekAgo = moment().subtract(7, 'days').format('YYYY-MM-DD');
   db.run("DELETE FROM alerts WHERE timestamp < ?", [weekAgo]);
   
-  // Clean old realtime data (older than 1 day)
   const dayAgo = moment().subtract(1, 'day').format('YYYY-MM-DD HH:mm:ss');
   db.run("DELETE FROM realtime_data WHERE timestamp < ?", [dayAgo]);
 });
@@ -878,7 +815,7 @@ cron.schedule('0 0 * * *', () => {
 // Server startup
 initializeDatabase().then(() => {
   server.listen(PORT, () => {
-    console.log(`Smart Multiplug System running on port ${PORT}`);
+    console.log(`Smart Power Consumption System running on port ${PORT}`);
     console.log(`Features: Real-time monitoring, Alerts, Peak detection, Export (CSV/PDF)`);
     console.log(`Waiting for WiFi module data...`);
   });
@@ -887,7 +824,7 @@ initializeDatabase().then(() => {
   process.exit(1);
 });
 
-// Graceful shutdown handling for Railway
+// Graceful shutdown handling
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, shutting down gracefully...');
   server.close(() => {

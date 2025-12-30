@@ -14,7 +14,6 @@ const char* controlURL = "https://power-consumption-dashboard.up.railway.app/api
 // Pin Definitions for ESP32-C3 (2 ports)
 const int relayPins[2] = {2, 3}; // GPIO2, GPIO3
 bool relayStates[2] = {false, false};
-bool masterEnabled = true; // Start with master enabled
 
 // Sensor pins (using ADC for voltage/current sensing)
 const int voltageSensorPin = A0; // ADC pin for voltage sensing
@@ -38,7 +37,7 @@ void setup() {
   Serial.begin(115200);
   delay(500);
   
-  Serial.println("\n=== Smart Multiplug (2 Ports) ESP32-C3 - Stable Version ===");
+  Serial.println("\n=== Smart Power Consumption (2 Ports) ESP32-C3 ===");
   
   // Initialize relays
   for(int i = 0; i < 2; i++) {
@@ -62,8 +61,7 @@ void setup() {
   
   lastEnergyUpdate = millis();
   
-  Serial.println("ESP32-C3 Ready! Stable relay control mode activated.");
-  Serial.println("Relays will stay ON once turned ON until manually turned OFF");
+  Serial.println("ESP32-C3 Ready! Relay control mode activated.");
 }
 
 void loop() {
@@ -152,11 +150,6 @@ void checkControlCommands() {
         setRelay(2, state);
       }
     }
-    
-    if(doc.containsKey("master")) {
-      masterEnabled = doc["master"].as<bool>();
-      Serial.printf("Master: %s\n", masterEnabled ? "ENABLED" : "DISABLED");
-    }
   }
   
   http.end();
@@ -167,7 +160,7 @@ float readVoltage(int port) {
   int adcValue = analogRead(voltageSensorPin);
   float voltage = 0;
   
-  if(relayStates[port-1] && masterEnabled) {
+  if(relayStates[port-1]) {
     // ESP32-C3 ADC is 12-bit (0-4095)
     voltage = (adcValue / 4095.0) * 3.3 * 100.0; // 100:1 voltage divider
     voltage = 220 + (voltage - 220) * 0.1; // Scale around 220V
@@ -181,7 +174,7 @@ float readVoltage(int port) {
 }
 
 float readCurrent(int port) {
-  if(!relayStates[port-1] || !masterEnabled) return 0;
+  if(!relayStates[port-1]) return 0;
   
   // Realistic current profiles based on actual appliances
   float baseCurrent = 0;
@@ -203,7 +196,7 @@ void updateEnergyCalculations() {
   float timeHours = (currentTime - lastEnergyUpdate) / 3600000.0; // Convert to hours
   
   for(int i = 0; i < 2; i++) {
-    if(relayStates[i] && masterEnabled) {
+    if(relayStates[i]) {
       // Calculate energy consumed in this interval
       float energyInterval = (currentReadings[i].power * timeHours) / 1000.0; // kWh
       dailyTotals[i].energy += energyInterval;
@@ -244,7 +237,6 @@ void sendRealSensorData() {
                  ",\"energy\":" + String(dailyTotals[port-1].energy, 3) +
                  ",\"cost\":" + String(dailyTotals[port-1].cost, 2) +
                  ",\"relay_state\":\"" + String(relayStates[port-1] ? "ON" : "OFF") + "\"" +
-                 ",\"master_enabled\":" + String(masterEnabled ? "true" : "false") +
                  ",\"arduino_connected\":true}";
     
     int responseCode = http.POST(data);
