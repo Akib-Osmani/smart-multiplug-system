@@ -894,6 +894,14 @@ async function togglePort(port) {
 
         if (response.ok) {
             dashboard.showNotification(`Port ${port} command sent`, 'info');
+            
+            // Clear pending state immediately since we don't have hardware confirmation
+            setTimeout(() => {
+                dashboard.pendingStates[`port${port}`] = null;
+                toggle.disabled = false;
+                statusElement.textContent = targetState ? 'ONLINE' : 'OFFLINE';
+                statusElement.className = `status-indicator ${targetState ? 'online' : 'offline'}`;
+            }, 1000);
         } else {
             throw new Error('Failed to toggle port');
         }
