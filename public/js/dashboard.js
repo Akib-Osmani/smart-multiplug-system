@@ -275,8 +275,306 @@ class SmartMultiplugDashboard {
             // Update waveform data
             this.addWaveformData(port - 1, portData.voltage, portData.current, portData.power);
 
-            // Visual feedback for port card
-            const portCard = document.getElementById(`port${port}`);
+    // Add waveform data point
+    addWaveformData(portIndex, voltage, current, power) {
+        const maxPoints = 50;
+        
+        this.waveformData.voltage[portIndex].push(voltage);
+        this.waveformData.current[portIndex].push(current);
+        this.waveformData.power[portIndex].push(power);
+        
+        if (this.waveformData.voltage[portIndex].length > maxPoints) {
+            this.waveformData.voltage[portIndex].shift();
+            this.waveformData.current[portIndex].shift();
+            this.waveformData.power[portIndex].shift();
+        }
+    }
+
+    // Update billing information
+    updateBillingInfo(todayData, monthlyData) {
+        if (todayData) {
+            document.getElementById('todayEnergy').textContent = `${todayData.total.energy} kWh`;
+            document.getElementById('todayCost').textContent = `${todayData.total.cost} BDT`;
+            document.getElementById('todayRuntime').textContent = todayData.total.runtime;
+            
+            for (let port = 1; port <= 4; port++) {
+                const portData = todayData[`port${port}`];
+                if (portData) {
+                    document.getElementById(`port${port}DailyEnergy`).textContent = `${portData.energy} kWh`;
+                    document.getElementById(`port${port}DailyCost`).textContent = `${portData.cost} BDT`;
+                }
+            }
+        }
+        
+        if (monthlyData) {
+            document.getElementById('monthlyEnergy').textContent = `${monthlyData.total.energy} kWh`;
+            document.getElementById('monthlyCost').textContent = `${monthlyData.total.cost} BDT`;
+            document.getElementById('monthlyDays').textContent = monthlyData.total.days;
+            
+            for (let port = 1; port <= 4; port++) {
+                const portData = monthlyData[`port${port}`];
+                if (portData) {
+                    document.getElementById(`port${port}MonthlyEnergy`).textContent = `${portData.energy} kWh`;
+                    document.getElementById(`port${port}MonthlyCost`).textContent = `${portData.cost} BDT`;
+                }
+            }
+        }
+    }
+
+    // Update alerts
+    updateAlerts(alerts) {
+        const container = document.getElementById('alertsContainer');
+        if (!alerts || alerts.length === 0) {
+            container.innerHTML = '<div class="no-alerts">No active alerts</div>';
+            return;
+        }
+        
+        container.innerHTML = alerts.map(alert => `
+            <div class="alert alert-${alert.severity.toLowerCase()}">
+                <div class="alert-content">
+                    <strong>${alert.type.replace('_', ' ')}</strong>
+                    <p>${alert.message}</p>
+                    <small>${new Date(alert.timestamp).toLocaleString()}</small>
+                </div>
+                <button class="alert-dismiss" onclick="dashboard.dismissAlert(${alert.id})">&times;</button>
+            </div>
+        `).join('');
+    }
+
+    // Update suggestions
+    updateSuggestions(suggestions) {
+        const container = document.getElementById('suggestionsContainer');
+        if (!suggestions || suggestions.length === 0) {
+            container.innerHTML = '<div class="no-suggestions">No suggestions available</div>';
+            return;
+        }
+        
+        container.innerHTML = suggestions.map(suggestion => `
+            <div class="suggestion suggestion-${suggestion.type.toLowerCase()}">
+                <div class="suggestion-content">
+                    <strong>Port ${suggestion.port}</strong>
+                    <p>${suggestion.message}</p>
+                    <small class="savings">${suggestion.savings}</small>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Update header info
+    updateHeaderInfo(data) {
+        if (data.timestamp) {
+            document.getElementById('lastUpdate').textContent = `Last Update: ${data.timestamp}`;
+        }
+    }
+
+    // Update connection status
+    updateConnectionStatus(connected) {
+        const statusElements = document.querySelectorAll('.status-indicator');
+        statusElements.forEach(element => {
+            if (!connected && !element.classList.contains('disabled')) {
+                element.textContent = 'DISCONNECTED';
+                element.className = 'status-indicator offline';
+            }
+        });
+    }
+
+    // Add update animation
+    addUpdateAnimation() {
+        const cards = document.querySelectorAll('.port-card, .billing-card');
+        cards.forEach(card => {
+            card.style.opacity = '0.8';
+            setTimeout(() => {
+                card.style.opacity = '1';
+            }, 100);
+        });
+    }
+
+    // Show notification
+    showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.textContent = message;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.classList.add('show');
+        }, 100);
+        
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => {
+                document.body.removeChild(notification);
+            }, 300);
+        }, 3000);
+    }
+
+    // Dismiss alert
+    async dismissAlert(alertId) {
+        try {
+            await fetch('/api/alerts/acknowledge', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ alertId })
+            });
+        } catch (error) {
+            console.error('Error dismissing alert:', error);
+        }
+    }
+
+    // Settings methods
+    openSettings() {
+        document.getElementById('settingsModal').style.display = 'block';
+    }
+
+    closeSettings() {
+        document.getElementById('settingsModal').style.display = 'none';
+    }
+}
+
+// Initialize dashboard
+const dashboard = new SmartMultiplugDashboard();
+
+// Global functions for HTML onclick handlers
+function togglePort(port) {
+    dashboard.togglePort(port);
+}
+
+function exportCSV() {
+    const startDate = prompt('Start date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+    const endDate = prompt('End date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+    
+    if (startDate && endDate) {
+        fetch('/api/export/csv', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ startDate, endDate })
+        })
+        .then(response => response.blob())
+        .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `consumption_${startDate}_${endDate}.csv`;
+            a.click();
+        })
+        .catch(error => {
+            console.error('Export error:', error);
+            dashboard.showNotification('Export failed', 'error');
+        });
+    }
+}
+
+function exportPDF() {
+    dashboard.showNotification('PDF export temporarily disabled. Use CSV export.', 'warning');
+}
+
+function openSettings() {
+    dashboard.openSettings();
+}
+
+function closeSettings() {
+    dashboard.closeSettings();
+}
+
+function updateElectricityRate() {
+    const rate = document.getElementById('electricityRateInput').value;
+    fetch('/api/settings/rate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rate: parseFloat(rate) })
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            dashboard.showNotification('Rate updated successfully', 'success');
+            document.getElementById('electricityRate').textContent = `Rate: ${rate} BDT/kWh`;
+        }
+    })
+    .catch(error => {
+        console.error('Rate update error:', error);
+        dashboard.showNotification('Rate update failed', 'error');
+    });
+}
+
+function resetDailyData() {
+    if (confirm('Reset today\'s consumption data? This cannot be undone.')) {
+        fetch('/api/reset-daily', { method: 'POST' })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                dashboard.showNotification('Daily data reset successfully', 'success');
+            }
+        })
+        .catch(error => {
+            console.error('Reset error:', error);
+            dashboard.showNotification('Reset failed', 'error');
+        });
+    }
+}
+
+function clearAllAlerts() {
+    dashboard.showNotification('Alert clearing not implemented', 'info');
+}
+
+function updatePowerThreshold() {
+    dashboard.showNotification('Threshold update not implemented', 'info');
+}
+
+function updateCostThreshold() {
+    dashboard.showNotification('Threshold update not implemented', 'info');
+}
+
+function updateInterval() {
+    dashboard.showNotification('Interval update not implemented', 'info');
+}
+
+function toggleAutoRefresh() {
+    dashboard.showNotification('Auto-refresh toggle not implemented', 'info');
+} document.getElementById(`port${port}`);
+            if (portCard) {
+                portCard.className = `port-card oscilloscope-style ${actualStatus}`;
+            }
+        }
+    }
+
+    // Toggle port relay state
+    async togglePort(port) {
+        if (port > 2) return; // Only ports 1-2 are controllable
+        
+        // Lock toggle to prevent sync override
+        this.toggleLocked[`port${port}`] = true;
+        
+        try {
+            const response = await fetch('/api/toggle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ port })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                console.log(`Port ${port} toggled to ${result.state}`);
+                // Visual feedback
+                this.showNotification(`Port ${port} ${result.state}`, 'success');
+            } else {
+                throw new Error('Toggle failed');
+            }
+        } catch (error) {
+            console.error('Toggle error:', error);
+            this.showNotification('Toggle failed', 'error');
+            
+            // Revert toggle on error
+            const toggle = document.getElementById(`toggle${port}`);
+            if (toggle) toggle.checked = !toggle.checked;
+        } finally {
+            // Release lock after 2 seconds
+            setTimeout(() => {
+                this.toggleLocked[`port${port}`] = false;
+            }, 2000);
+        }
+    } document.getElementById(`port${port}`);
             if (actualStatus === 'online') {
                 portCard.style.borderColor = '#00ff00';
             } else {
