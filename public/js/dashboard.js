@@ -17,6 +17,12 @@ class SmartMultiplugDashboard {
             port2: null
         };
         
+        // Web toggle priority - ignore sync for these ports temporarily
+        this.webTogglePriority = {
+            port1: false,
+            port2: false
+        };
+        
         // Waveform data storage
         this.waveformData = {
             voltage: [[], [], [], []],
@@ -254,8 +260,8 @@ class SmartMultiplugDashboard {
                 statusElement.textContent = actualStatus.toUpperCase();
                 statusElement.className = `status-indicator ${actualStatus}`;
                 
-                // Only update toggle if not currently being clicked
-                if (toggle && !toggle.disabled) {
+                // Only update toggle if web toggle doesn't have priority
+                if (toggle && !toggle.disabled && !this.webTogglePriority[`port${port}`]) {
                     toggle.checked = (actualStatus === 'online');
                 }
             }
@@ -839,12 +845,13 @@ window.addEventListener('offline', () => {
     }
 });
 
-// Toggle port function - simple and direct
+// Toggle port function with web priority
 async function togglePort(port) {
     const toggle = document.getElementById(`toggle${port}`);
     const statusElement = document.getElementById(`status${port}`);
     
-    // Temporarily disable toggle to prevent double-clicks
+    // Set web toggle priority to prevent sync override
+    dashboard.webTogglePriority[`port${port}`] = true;
     toggle.disabled = true;
     
     try {
@@ -858,6 +865,11 @@ async function togglePort(port) {
 
         if (response.ok) {
             dashboard.showNotification(`Port ${port} toggled`, 'success');
+            
+            // Update status immediately based on toggle state
+            const newStatus = toggle.checked ? 'online' : 'offline';
+            statusElement.textContent = newStatus.toUpperCase();
+            statusElement.className = `status-indicator ${newStatus}`;
         } else {
             throw new Error('Failed to toggle port');
         }
@@ -868,10 +880,11 @@ async function togglePort(port) {
         // Revert toggle on error
         toggle.checked = !toggle.checked;
     } finally {
-        // Re-enable toggle after 500ms
+        // Re-enable toggle and clear priority after 2 seconds
         setTimeout(() => {
             toggle.disabled = false;
-        }, 500);
+            dashboard.webTogglePriority[`port${port}`] = false;
+        }, 2000);
     }
 }
 
