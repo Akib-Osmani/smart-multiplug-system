@@ -234,7 +234,7 @@ class SmartMultiplugDashboard {
         this.addUpdateAnimation();
     }
 
-    // Update real-time status for all ports with hardware sync confirmation
+    // Update real-time status for all ports - simplified
     updateRealtimeStatus(realtimeData) {
         for (let port = 1; port <= 4; port++) {
             const portData = realtimeData[`port${port}`];
@@ -249,25 +249,13 @@ class SmartMultiplugDashboard {
                 actualStatus = 'online';
             }
             
-            // Check for pending state confirmation (only for active ports)
-            if (port <= 2 && toggle && this.pendingStates[`port${port}`] !== null) {
-                const expectedState = this.pendingStates[`port${port}`];
-                const actualState = (actualStatus === 'online');
-                
-                // If hardware state matches expected state, clear pending
-                if (expectedState === actualState) {
-                    this.pendingStates[`port${port}`] = null;
-                    toggle.disabled = false;
-                    dashboard.showNotification(`Port ${port} hardware confirmed ${actualStatus.toUpperCase()}`, 'success');
-                }
-            }
-            
-            // Only update UI if not pending or if confirmed
-            if (port > 2 || !toggle || this.pendingStates[`port${port}`] === null) {
+            // Update status and toggle for active ports only
+            if (port <= 2) {
                 statusElement.textContent = actualStatus.toUpperCase();
                 statusElement.className = `status-indicator ${actualStatus}`;
                 
-                if (port <= 2 && toggle) {
+                // Only update toggle if not currently being clicked
+                if (toggle && !toggle.disabled) {
                     toggle.checked = (actualStatus === 'online');
                 }
             }
@@ -286,20 +274,6 @@ class SmartMultiplugDashboard {
                 portCard.style.borderColor = '#00ff00';
             } else {
                 portCard.style.borderColor = '#00ff00';
-            }
-        }
-        
-        // Check master control confirmation
-        if (this.pendingStates.master !== null && realtimeData.masterEnabled !== undefined) {
-            const expectedMaster = this.pendingStates.master;
-            const actualMaster = realtimeData.masterEnabled;
-            
-            if (expectedMaster === actualMaster) {
-                this.pendingStates.master = null;
-                const masterToggle = document.getElementById('masterToggle');
-                masterToggle.disabled = false;
-                masterToggle.checked = actualMaster;
-                dashboard.showNotification(`Master control hardware confirmed ${actualMaster ? 'ON' : 'OFF'}`, 'success');
             }
         }
     }
@@ -865,23 +839,13 @@ window.addEventListener('offline', () => {
     }
 });
 
-// Toggle port function - simplified without master control
+// Toggle port function - simple and direct
 async function togglePort(port) {
     const toggle = document.getElementById(`toggle${port}`);
     const statusElement = document.getElementById(`status${port}`);
     
-    // Check if already pending
-    if (dashboard.pendingStates[`port${port}`] !== null) {
-        dashboard.showNotification('Port operation in progress, please wait', 'warning');
-        return;
-    }
-    
-    // Set pending state and disable control
-    const targetState = toggle.checked;
-    dashboard.pendingStates[`port${port}`] = targetState;
+    // Temporarily disable toggle to prevent double-clicks
     toggle.disabled = true;
-    statusElement.textContent = 'PENDING';
-    statusElement.className = 'status-indicator pending';
     
     try {
         const response = await fetch('/api/toggle', {
@@ -893,15 +857,7 @@ async function togglePort(port) {
         });
 
         if (response.ok) {
-            dashboard.showNotification(`Port ${port} command sent`, 'info');
-            
-            // Clear pending state immediately since we don't have hardware confirmation
-            setTimeout(() => {
-                dashboard.pendingStates[`port${port}`] = null;
-                toggle.disabled = false;
-                statusElement.textContent = targetState ? 'ONLINE' : 'OFFLINE';
-                statusElement.className = `status-indicator ${targetState ? 'online' : 'offline'}`;
-            }, 1000);
+            dashboard.showNotification(`Port ${port} toggled`, 'success');
         } else {
             throw new Error('Failed to toggle port');
         }
@@ -909,10 +865,13 @@ async function togglePort(port) {
         console.error('Error toggling port:', error);
         dashboard.showNotification('Failed to toggle port', 'error');
         
-        // Reset on error
-        dashboard.pendingStates[`port${port}`] = null;
-        toggle.disabled = false;
-        toggle.checked = !targetState;
+        // Revert toggle on error
+        toggle.checked = !toggle.checked;
+    } finally {
+        // Re-enable toggle after 500ms
+        setTimeout(() => {
+            toggle.disabled = false;
+        }, 500);
     }
 }
 
