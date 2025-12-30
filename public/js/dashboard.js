@@ -17,8 +17,8 @@ class SmartMultiplugDashboard {
             port2: null
         };
         
-        // Web toggle priority - ignore sync for these ports temporarily
-        this.webTogglePriority = {
+        // Toggle control priority - prevents sync override during user interaction
+        this.toggleLocked = {
             port1: false,
             port2: false
         };
@@ -255,13 +255,15 @@ class SmartMultiplugDashboard {
                 actualStatus = 'online';
             }
             
-            // Update status and toggle for active ports only
+            // Update status and toggle for active ports - respect user control priority
             if (port <= 2) {
                 statusElement.textContent = actualStatus.toUpperCase();
                 statusElement.className = `status-indicator ${actualStatus}`;
                 
-                // NEVER update toggle from sync - only manual control
-                // Toggle is controlled only by user clicks and ESP32 SYNC commands
+                // Only sync toggle state if user is not currently controlling it
+                if (toggle && !this.toggleLocked[`port${port}`]) {
+                    toggle.checked = (actualStatus === 'online');
+                }
             }
 
             // Always update metrics
@@ -843,12 +845,13 @@ window.addEventListener('offline', () => {
     }
 });
 
-// Toggle port function - direct control only
+// Toggle port function - user priority with sync respect
 async function togglePort(port) {
     const toggle = document.getElementById(`toggle${port}`);
     const statusElement = document.getElementById(`status${port}`);
     
-    // Disable toggle briefly to prevent double-clicks
+    // Lock toggle to prevent sync override during user control
+    dashboard.toggleLocked[`port${port}`] = true;
     toggle.disabled = true;
     
     try {
@@ -862,11 +865,6 @@ async function togglePort(port) {
 
         if (response.ok) {
             dashboard.showNotification(`Port ${port} ${toggle.checked ? 'ON' : 'OFF'}`, 'success');
-            
-            // Update status immediately based on toggle state
-            const newStatus = toggle.checked ? 'online' : 'offline';
-            statusElement.textContent = newStatus.toUpperCase();
-            statusElement.className = `status-indicator ${newStatus}`;
         } else {
             throw new Error('Failed to toggle port');
         }
@@ -877,10 +875,11 @@ async function togglePort(port) {
         // Revert toggle on error
         toggle.checked = !toggle.checked;
     } finally {
-        // Re-enable toggle after 1 second
+        // Unlock after 3 seconds to allow sync to take over
         setTimeout(() => {
             toggle.disabled = false;
-        }, 1000);
+            dashboard.toggleLocked[`port${port}`] = false;
+        }, 3000);
     }
 }
 
