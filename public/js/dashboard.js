@@ -865,22 +865,14 @@ window.addEventListener('offline', () => {
     }
 });
 
-// Toggle port function with hardware sync safety
+// Toggle port function - simplified without master control
 async function togglePort(port) {
     const toggle = document.getElementById(`toggle${port}`);
     const statusElement = document.getElementById(`status${port}`);
-    const masterToggle = document.getElementById('masterToggle');
     
     // Check if already pending
     if (dashboard.pendingStates[`port${port}`] !== null) {
         dashboard.showNotification('Port operation in progress, please wait', 'warning');
-        return;
-    }
-    
-    // Check if master is OFF and user is trying to turn ON a port
-    if (!masterToggle.checked && toggle.checked) {
-        toggle.checked = false;
-        dashboard.showNotification('Please turn ON Master Control first', 'warning');
         return;
     }
     
@@ -901,9 +893,7 @@ async function togglePort(port) {
         });
 
         if (response.ok) {
-            // Wait for hardware confirmation via data updates
-            // UI will be updated when actual hardware state is received
-            dashboard.showNotification(`Port ${port} command sent, waiting for hardware confirmation`, 'info');
+            dashboard.showNotification(`Port ${port} command sent`, 'info');
         } else {
             throw new Error('Failed to toggle port');
         }

@@ -648,7 +648,10 @@ app.post('/api/data', async (req, res) => {
 // Control endpoint for ESP32
 app.get('/api/control', (req, res) => {
   db.all("SELECT port, relay_state FROM realtime_data WHERE port <= 2 ORDER BY port", (err, rows) => {
-    if (err) return res.status(500).json({ error: 'Database error' });
+    if (err) {
+      console.error('Control endpoint database error:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
     
     const response = {};
     
@@ -657,6 +660,7 @@ app.get('/api/control', (req, res) => {
       response[`relay${i}`] = row && row.relay_state === 'ON' ? 'ON' : 'OFF';
     }
     
+    console.log('Control response sent to ESP32:', response);
     res.json(response);
   });
 });
@@ -720,33 +724,46 @@ app.post('/api/reset-daily', (req, res) => {
 app.post('/api/toggle', async (req, res) => {
   try {
     const { port } = req.body;
+    console.log(`Toggle request received for port ${port}`);
     
     db.get("SELECT relay_state FROM realtime_data WHERE port = ?", [port], (err, row) => {
-      if (err) return res.status(500).json({ error: err.message });
+      if (err) {
+        console.error('Toggle endpoint database error:', err);
+        return res.status(500).json({ error: err.message });
+      }
       
       const currentState = row ? row.relay_state : 'OFF';
       const newState = currentState === 'ON' ? 'OFF' : 'ON';
+      
+      console.log(`Port ${port}: ${currentState} -> ${newState}`);
       
       // Update only relay state, preserve other data
       db.run(`UPDATE realtime_data SET relay_state = ? WHERE port = ?`, 
              [newState, port], (err) => {
         if (err) {
+          console.log(`No existing record for port ${port}, creating new one`);
           // If no existing record, create one
           db.run(`INSERT OR REPLACE INTO realtime_data (port, voltage, current, power, status, relay_state) 
                   VALUES (?, 0, 0, 0, 'offline', ?)`, 
                  [port, newState], (err) => {
-            if (err) return res.status(500).json({ error: err.message });
+            if (err) {
+              console.error('Error creating new relay record:', err);
+              return res.status(500).json({ error: err.message });
+            }
             
+            console.log(`Port ${port} relay state updated to ${newState}`);
             io.emit('relayUpdate', { port, state: newState });
             res.json({ success: true, port, state: newState });
           });
         } else {
+          console.log(`Port ${port} relay state updated to ${newState}`);
           io.emit('relayUpdate', { port, state: newState });
           res.json({ success: true, port, state: newState });
         }
       });
     });
   } catch (error) {
+    console.error('Toggle endpoint error:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -14,7 +14,6 @@ const char* controlURL = "https://power-consumption-dashboard.up.railway.app/api
 // Pin Definitions for ESP32-C3 (2 ports)
 const int relayPins[2] = {2, 3}; // GPIO2, GPIO3
 bool relayStates[2] = {false, false};
-bool masterEnabled = true; // Start with master enabled
 
 // Sensor pins (using ADC for voltage/current sensing)
 const int voltageSensorPin = A0; // ADC pin for voltage sensing
@@ -38,7 +37,7 @@ void setup() {
   Serial.begin(115200);
   delay(500);
   
-  Serial.println("\n=== Smart Multiplug (2 Ports) ESP32-C3 - Stable Version ===");
+  Serial.println("\n=== Smart Power Consumption (2 Ports) ESP32-C3 ===");
   
   // Initialize relays
   for(int i = 0; i < 2; i++) {
@@ -46,6 +45,7 @@ void setup() {
     digitalWrite(relayPins[i], LOW);
     // Initialize daily totals
     dailyTotals[i] = {0, 0, 0, 0, 0};
+    Serial.printf("Relay %d initialized: OFF\n", i+1);
   }
   
   // Initialize sensor pin
@@ -62,8 +62,15 @@ void setup() {
   
   lastEnergyUpdate = millis();
   
-  Serial.println("ESP32-C3 Ready! Stable relay control mode activated.");
-  Serial.println("Relays will stay ON once turned ON until manually turned OFF");
+  Serial.println("ESP32-C3 Ready! Relay control mode activated.");
+  Serial.println("Commands: 1ON, 1OFF, 2ON, 2OFF, STATUS, SYNC, TEST");
+  Serial.println("STATUS - Show system status");
+  Serial.println("SYNC - Manual server sync");
+  Serial.println("TEST - Test server connection");
+  
+  // Initial sync with server
+  Serial.println("Syncing with server...");
+  checkControlCommands();
 }
 
 void loop() {
@@ -106,9 +113,29 @@ void loop() {
       setRelay(2, false);
     }
     else if(command == "STATUS") {
-      Serial.printf("Relay 1: %s, Relay 2: %s\n", 
-                   relayStates[0] ? "ON" : "OFF",
-                   relayStates[1] ? "ON" : "OFF");
+      Serial.printf("=== ESP32 Status ===\n");
+      Serial.printf("WiFi: %s (IP: %s)\n", WiFi.status() == WL_CONNECTED ? "Connected" : "Disconnected", WiFi.localIP().toString().c_str());
+      Serial.printf("Relay 1: %s (GPIO%d)\n", relayStates[0] ? "ON" : "OFF", relayPins[0]);
+      Serial.printf("Relay 2: %s (GPIO%d)\n", relayStates[1] ? "ON" : "OFF", relayPins[1]);
+      Serial.printf("Server URL: %s\n", serverURL);
+      Serial.printf("Control URL: %s\n", controlURL);
+    }
+    else if(command == "SYNC") {
+      Serial.println("Manual sync with server...");
+      checkControlCommands();
+    }
+    else if(command == "TEST") {
+      Serial.println("Testing server connection...");
+      WiFiClientSecure client;
+      client.setInsecure();
+      HTTPClient http;
+      http.begin(client, controlURL);
+      int code = http.GET();
+      Serial.printf("Test result: HTTP %d\n", code);
+      if(code == 200) {
+        Serial.println("Response: " + http.getString());
+      }
+      http.end();
     }
   }
 }
@@ -117,7 +144,9 @@ void setRelay(int port, bool state) {
   if(port >= 1 && port <= 2) {
     relayStates[port-1] = state;
     digitalWrite(relayPins[port-1], state ? HIGH : LOW);
-    Serial.printf("Relay %d: %s\n", port, state ? "ON" : "OFF");
+    Serial.printf("Relay %d: %s (GPIO%d = %s)\n", 
+                  port, state ? "ON" : "OFF", 
+                  relayPins[port-1], state ? "HIGH" : "LOW");
   }
 }
 
@@ -127,35 +156,60 @@ void checkControlCommands() {
   
   HTTPClient http;
   http.begin(client, controlURL);
-  http.setTimeout(2000);
+  http.setTimeout(3000);
   
   int responseCode = http.GET();
   
+  Serial.printf("Control check: HTTP %d\n", responseCode);
+  
   if(responseCode == 200) {
     String response = http.getString();
+    Serial.println("Server response: " + response);
     
     // Parse JSON response
     DynamicJsonDocument doc(1024);
-    deserializeJson(doc, response);
+    DeserializationError error = deserializeJson(doc, response);
+    
+    if(error) {
+      Serial.printf("JSON parse error: %s\n", error.c_str());
+      http.end();
+      return;
+    }
     
     // Check for relay commands
     if(doc.containsKey("relay1")) {
-      bool state = doc["relay1"].as<String>() == "ON";
+      String relay1State = doc["relay1"].as<String>();
+      bool state = relay1State == "ON";
+      Serial.printf("Server relay1: %s\n", relay1State.c_str());
+      
       if(relayStates[0] != state) {
+        Serial.printf("Updating relay 1: %s -> %s\n", 
+                     relayStates[0] ? "ON" : "OFF", 
+                     state ? "ON" : "OFF");
         setRelay(1, state);
+      } else {
+        Serial.printf("Relay 1 already in correct state: %s\n", state ? "ON" : "OFF");
       }
     }
     
     if(doc.containsKey("relay2")) {
-      bool state = doc["relay2"].as<String>() == "ON";
+      String relay2State = doc["relay2"].as<String>();
+      bool state = relay2State == "ON";
+      Serial.printf("Server relay2: %s\n", relay2State.c_str());
+      
       if(relayStates[1] != state) {
+        Serial.printf("Updating relay 2: %s -> %s\n", 
+                     relayStates[1] ? "ON" : "OFF", 
+                     state ? "ON" : "OFF");
         setRelay(2, state);
+      } else {
+        Serial.printf("Relay 2 already in correct state: %s\n", state ? "ON" : "OFF");
       }
     }
-    
-    if(doc.containsKey("master")) {
-      masterEnabled = doc["master"].as<bool>();
-      Serial.printf("Master: %s\n", masterEnabled ? "ENABLED" : "DISABLED");
+  } else {
+    Serial.printf("Control check failed: %d\n", responseCode);
+    if(responseCode == -1) {
+      Serial.println("Connection timeout - check WiFi");
     }
   }
   
@@ -167,7 +221,7 @@ float readVoltage(int port) {
   int adcValue = analogRead(voltageSensorPin);
   float voltage = 0;
   
-  if(relayStates[port-1] && masterEnabled) {
+  if(relayStates[port-1]) {
     // ESP32-C3 ADC is 12-bit (0-4095)
     voltage = (adcValue / 4095.0) * 3.3 * 100.0; // 100:1 voltage divider
     voltage = 220 + (voltage - 220) * 0.1; // Scale around 220V
@@ -181,7 +235,7 @@ float readVoltage(int port) {
 }
 
 float readCurrent(int port) {
-  if(!relayStates[port-1] || !masterEnabled) return 0;
+  if(!relayStates[port-1]) return 0;
   
   // Realistic current profiles based on actual appliances
   float baseCurrent = 0;
@@ -203,7 +257,7 @@ void updateEnergyCalculations() {
   float timeHours = (currentTime - lastEnergyUpdate) / 3600000.0; // Convert to hours
   
   for(int i = 0; i < 2; i++) {
-    if(relayStates[i] && masterEnabled) {
+    if(relayStates[i]) {
       // Calculate energy consumed in this interval
       float energyInterval = (currentReadings[i].power * timeHours) / 1000.0; // kWh
       dailyTotals[i].energy += energyInterval;
@@ -237,14 +291,13 @@ void sendRealSensorData() {
     currentReadings[port-1].energy = dailyTotals[port-1].energy;
     currentReadings[port-1].cost = dailyTotals[port-1].cost;
     
+    // IMPORTANT: Don't send relay_state in sensor data to avoid overwriting server state
     String data = "{\"port\":" + String(port) + 
                  ",\"voltage\":" + String(voltage, 1) + 
                  ",\"current\":" + String(current, 2) + 
                  ",\"power\":" + String(power, 0) + 
                  ",\"energy\":" + String(dailyTotals[port-1].energy, 3) +
                  ",\"cost\":" + String(dailyTotals[port-1].cost, 2) +
-                 ",\"relay_state\":\"" + String(relayStates[port-1] ? "ON" : "OFF") + "\"" +
-                 ",\"master_enabled\":" + String(masterEnabled ? "true" : "false") +
                  ",\"arduino_connected\":true}";
     
     int responseCode = http.POST(data);
