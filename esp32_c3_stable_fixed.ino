@@ -80,7 +80,7 @@ void setup() {
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
   display.setCursor(0,0);
-  display.println("Smart Multiplug");
+  display.println("Smart Power Consumption");
   display.println("Initializing...");
   display.display();
   delay(1000);
@@ -259,38 +259,33 @@ void checkControlCommands() {
 }
 
 float readVoltage(int port) {
-  // Read voltage from ADC with proper scaling for ESP32-C3
+  // Read actual ADC value from voltage sensor
   int adcValue = analogRead(voltageSensorPin);
-  float voltage = 0;
   
-  if(relayStates[port-1]) {
-    // ESP32-C3 ADC is 12-bit (0-4095)
-    voltage = (adcValue / 4095.0) * 3.3 * 100.0; // 100:1 voltage divider
-    voltage = 220 + (voltage - 220) * 0.1; // Scale around 220V
-    voltage += random(-3, 4); // Real-world variation
-    
-    // Ensure realistic voltage range
-    voltage = constrain(voltage, 210, 235);
+  // Convert ADC to voltage (adjust scaling based on your voltage divider)
+  float measuredVoltage = (adcValue / 4095.0) * 3.3 * 67.0;
+  
+  // Only return voltage if relay is ON and reading is above noise threshold
+  if(relayStates[port-1] && measuredVoltage > 10.0) {
+    return constrain(measuredVoltage, 0, 250);
   }
   
-  return voltage;
+  return 0; // No voltage detected
 }
 
 float readCurrent(int port) {
-  if(!relayStates[port-1]) return 0;
+  // Read actual current sensor (you need to connect current sensor to another ADC pin)
+  // For now, return 0 if no voltage detected
+  float voltage = readVoltage(port);
   
-  // Realistic current profiles based on actual appliances
-  float baseCurrent = 0;
-  switch(port) {
-    case 1: // AC Unit - variable load
-      baseCurrent = 4.2 + (random(-80, 81) / 100.0); // 3.4A to 5.0A
-      break;
-    case 2: // Refrigerator - cyclic load
-      baseCurrent = 1.6 + (random(-40, 41) / 100.0); // 1.2A to 2.0A
-      break;
+  if(voltage > 0 && relayStates[port-1]) {
+    // Calculate current based on power consumption (placeholder)
+    // Replace this with actual current sensor reading
+    float estimatedCurrent = voltage / 220.0; // Very basic estimation
+    return constrain(estimatedCurrent, 0, 10);
   }
   
-  return max(0.0f, baseCurrent);
+  return 0; // No current
 }
 
 void updateEnergyCalculations() {
