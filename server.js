@@ -721,52 +721,50 @@ app.post('/api/reset-daily', (req, res) => {
   });
 });
 
-// Toggle relay endpoint - for manual control only
-app.post('/api/toggle', async (req, res) => {
-  try {
-    const { port } = req.body;
-    console.log(`Toggle request received for port ${port}`);
+// Toggle relay endpoint - OPTIMIZED with immediate ESP32 sync trigger
+app.post('/api/toggle', (req, res) => {
+  const { port } = req.body;
+  console.log(`Toggle request received for port ${port}`);
+  
+  db.get("SELECT relay_state FROM realtime_data WHERE port = ?", [port], (err, row) => {
+    if (err) {
+      console.error('Toggle endpoint database error:', err);
+      return res.status(500).json({ error: err.message });
+    }
     
-    db.get("SELECT relay_state FROM realtime_data WHERE port = ?", [port], (err, row) => {
+    const currentState = row ? row.relay_state : 'OFF';
+    const newState = currentState === 'ON' ? 'OFF' : 'ON';
+    
+    console.log(`Port ${port}: ${currentState} -> ${newState}`);
+    
+    // Update database first
+    db.run(`UPDATE realtime_data SET relay_state = ? WHERE port = ?`, 
+           [newState, port], (err) => {
       if (err) {
-        console.error('Toggle endpoint database error:', err);
-        return res.status(500).json({ error: err.message });
-      }
-      
-      const currentState = row ? row.relay_state : 'OFF';
-      const newState = currentState === 'ON' ? 'OFF' : 'ON';
-      
-      console.log(`Port ${port}: ${currentState} -> ${newState}`);
-      
-      // Update only relay state, preserve other data
-      db.run(`UPDATE realtime_data SET relay_state = ? WHERE port = ?`, 
-             [newState, port], (err) => {
-        if (err) {
-          console.log(`No existing record for port ${port}, creating new one`);
-          // If no existing record, create one
-          db.run(`INSERT OR REPLACE INTO realtime_data (port, voltage, current, power, status, relay_state) 
-                  VALUES (?, 0, 0, 0, 'offline', ?)`, 
-                 [port, newState], (err) => {
-            if (err) {
-              console.error('Error creating new relay record:', err);
-              return res.status(500).json({ error: err.message });
-            }
-            
-            console.log(`Port ${port} relay state updated to ${newState}`);
-            io.emit('relayUpdate', { port, state: newState });
-            res.json({ success: true, port, state: newState });
-          });
-        } else {
+        console.log(`No existing record for port ${port}, creating new one`);
+        db.run(`INSERT OR REPLACE INTO realtime_data (port, voltage, current, power, status, relay_state) 
+                VALUES (?, 0, 0, 0, 'offline', ?)`, 
+               [port, newState], (err) => {
+          if (err) {
+            console.error('Error creating new relay record:', err);
+            return res.status(500).json({ error: err.message });
+          }
+          
           console.log(`Port ${port} relay state updated to ${newState}`);
-          io.emit('relayUpdate', { port, state: newState });
-          res.json({ success: true, port, state: newState });
-        }
-      });
+          // Send response after database update
+          res.json({ success: true, port, state: newState, syncTriggered: true });
+          // Trigger immediate WebSocket sync
+          io.emit('syncESP32', { port, state: newState });
+        });
+      } else {
+        console.log(`Port ${port} relay state updated to ${newState}`);
+        // Send response after database update
+        res.json({ success: true, port, state: newState, syncTriggered: true });
+        // Trigger immediate WebSocket sync
+        io.emit('syncESP32', { port, state: newState });
+      }
     });
-  } catch (error) {
-    console.error('Toggle endpoint error:', error);
-    res.status(500).json({ error: error.message });
-  }
+  });
 });
 
 // ESP32 sync trigger endpoint
@@ -821,6 +819,12 @@ io.on('connection', async (socket) => {
   } catch (error) {
     console.error('Error sending initial data:', error);
   }
+  
+  // Handle ESP32 sync trigger
+  socket.on('triggerESP32Sync', () => {
+    console.log('ESP32 sync triggered via WebSocket');
+    io.emit('syncESP32', { immediate: true });
+  });
   
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);

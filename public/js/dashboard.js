@@ -18,10 +18,7 @@ class SmartMultiplugDashboard {
         };
         
         // Toggle control priority - prevents sync override during user interaction
-        this.toggleLocked = {
-            port1: false,
-            port2: false
-        };
+        // REMOVED: No longer needed since auto-sync is disabled
         
         // Waveform data storage
         this.waveformData = {
@@ -258,8 +255,8 @@ class SmartMultiplugDashboard {
                 statusElement.textContent = actualStatus.toUpperCase();
                 statusElement.className = `status-indicator ${actualStatus}`;
                 
-                // NEVER override user's toggle state - only sync if toggle matches server state
-                if (toggle && !this.toggleLocked[`port${port}`] && portData.relay_state !== undefined) {
+                // Only sync toggle state when manually requested (no auto-sync)
+                if (toggle && portData.relay_state !== undefined) {
                     const serverState = (portData.relay_state === 'ON');
                     const currentToggle = toggle.checked;
                     
@@ -295,17 +292,12 @@ class SmartMultiplugDashboard {
         }
     }
 
-    // Toggle port relay state
+    // Toggle port relay state - with immediate sync after server update
     async togglePort(port) {
         if (port > 2) return; // Only ports 1-2 are controllable
         
         const toggle = document.getElementById(`toggle${port}`);
-        
-        // Immediately update UI for responsive feel
         const newState = toggle.checked;
-        
-        // Brief lock to prevent immediate sync override
-        this.toggleLocked[`port${port}`] = true;
         
         try {
             const response = await fetch('/api/toggle', {
@@ -319,6 +311,12 @@ class SmartMultiplugDashboard {
             if (result.success) {
                 console.log(`Port ${port} toggled to ${result.state}`);
                 this.showNotification(`Port ${port} ${result.state}`, 'success');
+                
+                // Trigger immediate ESP32 sync after server confirms update
+                if (result.syncTriggered) {
+                    this.socket.emit('triggerESP32Sync');
+                    console.log('ESP32 sync triggered after server update');
+                }
             } else {
                 throw new Error('Toggle failed');
             }
@@ -328,11 +326,6 @@ class SmartMultiplugDashboard {
             
             // Revert toggle on error
             if (toggle) toggle.checked = !newState;
-        } finally {
-            // Release lock after 500ms - just enough to prevent immediate conflict
-            setTimeout(() => {
-                this.toggleLocked[`port${port}`] = false;
-            }, 500);
         }
     }
 

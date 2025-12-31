@@ -62,19 +62,28 @@ void setup() {
   pinMode(voltageSensorPin, INPUT);
   
   // Initialize OLED display
-  Wire.begin(8, 9); // SDA=GPIO8, SCL=GPIO9
+  Wire.begin(5, 6); // Try GPIO5=SDA, GPIO6=SCL
+  Serial.println("Initializing OLED...");
+  
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-    Serial.println("OLED allocation failed");
+    Serial.println("OLED allocation failed - trying 0x3D");
+    if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3D)) {
+      Serial.println("OLED failed on both addresses");
+    } else {
+      Serial.println("OLED found at 0x3D");
+    }
   } else {
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setTextColor(SSD1306_WHITE);
-    display.setCursor(0,0);
-    display.println("Smart Multiplug");
-    display.println("Initializing...");
-    display.display();
-    Serial.println("OLED initialized");
+    Serial.println("OLED found at 0x3C");
   }
+  
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0,0);
+  display.println("Smart Multiplug");
+  display.println("Initializing...");
+  display.display();
+  delay(1000);
   
   // Connect WiFi
   WiFi.begin(ssid, password);
@@ -87,20 +96,22 @@ void setup() {
   
   lastEnergyUpdate = millis();
   
-  Serial.println("ESP32-C3 Ready! Manual relay control mode.");
+  Serial.println("ESP32-C3 Ready! Auto-sync enabled every 3 seconds.");
   Serial.println("Commands: 1ON, 1OFF, 2ON, 2OFF, STATUS, SYNC, TEST");
   Serial.println("STATUS - Show system status");
   Serial.println("SYNC - Manual server sync");
   Serial.println("TEST - Test server connection");
-  Serial.println("Use SYNC command or dashboard sync button for server sync");
+  Serial.println("Toggle buttons will control hardware within 3 seconds");
   
-  // NO initial sync - manual control only
-  Serial.println("Auto-sync disabled. Use SYNC command or dashboard button.");
+  // Initial sync with server
+  Serial.println("Syncing with server...");
+  checkControlCommands();
 }
 
 void loop() {
   static unsigned long lastSensorRead = 0;
   static unsigned long lastDisplayUpdate = 0;
+  static unsigned long lastControlCheck = 0;
   
   // Send real sensor data every 5 seconds
   if(millis() - lastSensorRead >= 5000) {
@@ -112,6 +123,12 @@ void loop() {
   if(millis() - lastDisplayUpdate >= 2000) {
     updateOLEDDisplay();
     lastDisplayUpdate = millis();
+  }
+  
+  // Check for control commands every 3 seconds (fast auto-sync)
+  if(millis() - lastControlCheck >= 3000) {
+    checkControlCommands();
+    lastControlCheck = millis();
   }
   
   // Update energy calculations every 10 seconds
@@ -301,7 +318,7 @@ void updateOLEDDisplay() {
   
   // Title
   display.setCursor(0, 0);
-  display.println("KING AKIB HAHAAAA");
+  display.println("Smart Multiplug");
   display.drawLine(0, 10, 128, 10, SSD1306_WHITE);
   
   // Port 1 data
