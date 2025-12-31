@@ -44,8 +44,6 @@ class SmartMultiplugDashboard {
         console.log('Smart Multiplug Dashboard initialized - Waiting for WiFi module data');
     }
 
-
-
     // Initialize waveform canvases
     initializeWaveforms() {
         for (let port = 1; port <= 4; port++) {
@@ -260,10 +258,15 @@ class SmartMultiplugDashboard {
                 statusElement.textContent = actualStatus.toUpperCase();
                 statusElement.className = `status-indicator ${actualStatus}`;
                 
-                // Toggle ONLY follows database relay_state, NOT power readings
-                // Only sync if user is not currently controlling it
+                // NEVER override user's toggle state - only sync if toggle matches server state
                 if (toggle && !this.toggleLocked[`port${port}`] && portData.relay_state !== undefined) {
-                    toggle.checked = (portData.relay_state === 'ON');
+                    const serverState = (portData.relay_state === 'ON');
+                    const currentToggle = toggle.checked;
+                    
+                    // Only update if they don't match (avoid unnecessary changes)
+                    if (currentToggle !== serverState) {
+                        toggle.checked = serverState;
+                    }
                 }
             }
 
@@ -274,6 +277,8 @@ class SmartMultiplugDashboard {
 
             // Update waveform data
             this.addWaveformData(port - 1, portData.voltage, portData.current, portData.power);
+        }
+    }
 
     // Add waveform data point
     addWaveformData(portIndex, voltage, current, power) {
@@ -287,6 +292,47 @@ class SmartMultiplugDashboard {
             this.waveformData.voltage[portIndex].shift();
             this.waveformData.current[portIndex].shift();
             this.waveformData.power[portIndex].shift();
+        }
+    }
+
+    // Toggle port relay state
+    async togglePort(port) {
+        if (port > 2) return; // Only ports 1-2 are controllable
+        
+        const toggle = document.getElementById(`toggle${port}`);
+        
+        // Immediately update UI for responsive feel
+        const newState = toggle.checked;
+        
+        // Brief lock to prevent immediate sync override
+        this.toggleLocked[`port${port}`] = true;
+        
+        try {
+            const response = await fetch('/api/toggle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ port })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                console.log(`Port ${port} toggled to ${result.state}`);
+                this.showNotification(`Port ${port} ${result.state}`, 'success');
+            } else {
+                throw new Error('Toggle failed');
+            }
+        } catch (error) {
+            console.error('Toggle error:', error);
+            this.showNotification('Toggle failed', 'error');
+            
+            // Revert toggle on error
+            if (toggle) toggle.checked = !newState;
+        } finally {
+            // Release lock after 500ms - just enough to prevent immediate conflict
+            setTimeout(() => {
+                this.toggleLocked[`port${port}`] = false;
+            }, 500);
         }
     }
 
@@ -437,7 +483,9 @@ const dashboard = new SmartMultiplugDashboard();
 
 // Global functions for HTML onclick handlers
 function togglePort(port) {
-    dashboard.togglePort(port);
+    if (dashboard) {
+        dashboard.togglePort(port);
+    }
 }
 
 function exportCSV() {
@@ -531,700 +579,20 @@ function updateInterval() {
 
 function toggleAutoRefresh() {
     dashboard.showNotification('Auto-refresh toggle not implemented', 'info');
-} document.getElementById(`port${port}`);
-            if (portCard) {
-                portCard.className = `port-card oscilloscope-style ${actualStatus}`;
-            }
-        }
-    }
+}
 
-    // Toggle port relay state
-    async togglePort(port) {
-        if (port > 2) return; // Only ports 1-2 are controllable
-        
-        // Lock toggle to prevent sync override
-        this.toggleLocked[`port${port}`] = true;
-        
-        try {
-            const response = await fetch('/api/toggle', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ port })
-            });
-            
-            const result = await response.json();
-            
+function syncESP32() {
+    fetch('/api/sync-esp32', { method: 'POST' })
+        .then(response => response.json())
+        .then(result => {
             if (result.success) {
-                console.log(`Port ${port} toggled to ${result.state}`);
-                // Visual feedback
-                this.showNotification(`Port ${port} ${result.state}`, 'success');
+                dashboard.showNotification('ESP32 sync triggered', 'success');
             } else {
-                throw new Error('Toggle failed');
+                dashboard.showNotification('Sync failed', 'error');
             }
-        } catch (error) {
-            console.error('Toggle error:', error);
-            this.showNotification('Toggle failed', 'error');
-            
-            // Revert toggle on error
-            const toggle = document.getElementById(`toggle${port}`);
-            if (toggle) toggle.checked = !toggle.checked;
-        } finally {
-            // Release lock after 2 seconds
-            setTimeout(() => {
-                this.toggleLocked[`port${port}`] = false;
-            }, 2000);
-        }
-    } document.getElementById(`port${port}`);
-            if (actualStatus === 'online') {
-                portCard.style.borderColor = '#00ff00';
-            } else {
-                portCard.style.borderColor = '#00ff00';
-            }
-        }
-    }
-
-    // Add data to waveform arrays
-    addWaveformData(portIndex, voltage, current, power) {
-        const maxPoints = 50;
-        
-        // Add new data points
-        this.waveformData.voltage[portIndex].push(voltage);
-        this.waveformData.current[portIndex].push(current * 10); // Scale for visibility
-        this.waveformData.power[portIndex].push(power / 10); // Scale for visibility
-        
-        // Keep only last maxPoints
-        if (this.waveformData.voltage[portIndex].length > maxPoints) {
-            this.waveformData.voltage[portIndex].shift();
-            this.waveformData.current[portIndex].shift();
-            this.waveformData.power[portIndex].shift();
-        }
-    }
-
-    // Update billing information
-    updateBillingInfo(todayData, monthlyData) {
-        if (!todayData || !monthlyData) return;
-
-        // Update today's summary
-        document.getElementById('todayEnergy').textContent = `${todayData.total.energy} kWh`;
-        document.getElementById('todayCost').textContent = `${todayData.total.cost} BDT`;
-        document.getElementById('todayRuntime').textContent = todayData.total.runtime;
-
-        // Update monthly summary
-        document.getElementById('monthlyEnergy').textContent = `${monthlyData.total.energy} kWh`;
-        document.getElementById('monthlyCost').textContent = `${monthlyData.total.cost} BDT`;
-        document.getElementById('monthlyDays').textContent = monthlyData.total.days;
-
-        // Update port-wise daily consumption
-        for (let port = 1; port <= 4; port++) {
-            const dailyData = todayData[`port${port}`];
-            if (dailyData) {
-                document.getElementById(`port${port}DailyEnergy`).textContent = `${dailyData.energy} kWh`;
-                document.getElementById(`port${port}DailyCost`).textContent = `${dailyData.cost} BDT`;
-            }
-        }
-
-        // Update port-wise monthly consumption
-        for (let port = 1; port <= 4; port++) {
-            const monthlyPortData = monthlyData[`port${port}`];
-            if (monthlyPortData) {
-                document.getElementById(`port${port}MonthlyEnergy`).textContent = `${monthlyPortData.energy} kWh`;
-                document.getElementById(`port${port}MonthlyCost`).textContent = `${monthlyPortData.cost} BDT`;
-            }
-        }
-    }
-
-    // Update alerts section
-    updateAlerts(alerts) {
-        const container = document.getElementById('alertsContainer');
-        
-        if (!alerts || alerts.length === 0) {
-            container.innerHTML = '<div class="no-alerts">No active alerts</div>';
-            return;
-        }
-
-        container.innerHTML = alerts.map(alert => `
-            <div class="alert-item ${alert.severity.toLowerCase()}" data-alert-id="${alert.id}">
-                <div class="alert-content">
-                    <div class="alert-title">${this.getAlertTitle(alert.type)}</div>
-                    <div class="alert-message">${alert.message}</div>
-                </div>
-                <button class="alert-dismiss" onclick="dashboard.dismissAlert(${alert.id})" title="Dismiss">
-                    ×
-                </button>
-            </div>
-        `).join('');
-    }
-
-    // Update optimization suggestions
-    updateSuggestions(suggestions) {
-        const container = document.getElementById('suggestionsContainer');
-        
-        if (!suggestions || suggestions.length === 0) {
-            container.innerHTML = '<div class="no-suggestions">No suggestions available</div>';
-            return;
-        }
-
-        container.innerHTML = suggestions.map(suggestion => `
-            <div class="suggestion-item">
-                <div class="suggestion-title">${this.getSuggestionTitle(suggestion.type)}</div>
-                <div class="suggestion-message">${suggestion.message}</div>
-                ${suggestion.savings ? `<div class="suggestion-savings">${suggestion.savings}</div>` : ''}
-            </div>
-        `).join('');
-    }
-
-    // Update header information
-    updateHeaderInfo(data) {
-        const now = new Date();
-        document.getElementById('lastUpdate').textContent = 
-            `Last Update: ${now.toLocaleTimeString()}`;
-        
-        if (data.electricity_rate) {
-            document.getElementById('electricityRate').textContent = 
-                `Rate: ${data.electricity_rate} BDT/kWh`;
-        }
-    }
-
-    // Add update animation to elements
-    addUpdateAnimation() {
-        // Removed fade-in animation to prevent jumping
-        // Elements update smoothly without visual disruption
-    }
-
-    // Update connection status indicator
-    updateConnectionStatus(connected) {
-        const header = document.querySelector('.header');
-        if (connected) {
-            header.style.borderBottom = '3px solid #28a745';
-        } else {
-            header.style.borderBottom = '3px solid #dc3545';
-        }
-    }
-
-    // Get alert title based on type
-    getAlertTitle(type) {
-        const titles = {
-            'HIGH_USAGE': 'High Power Usage',
-            'HIGH_COST': 'High Daily Cost',
-            'PEAK_USAGE': 'Peak Hour Usage',
-            'DEVICE_OFFLINE': 'Device Offline',
-            'SYSTEM_ERROR': 'System Error'
-        };
-        return titles[type] || 'Alert';
-    }
-
-    // Get suggestion title based on type
-    getSuggestionTitle(type) {
-        const titles = {
-            'HIGH_CONSUMPTION': 'Energy Efficiency',
-            'SCHEDULE_OPTIMIZATION': 'Usage Scheduling',
-            'PEAK_HOUR_OPTIMIZATION': 'Peak Hour Optimization',
-            'DEVICE_REPLACEMENT': 'Device Upgrade',
-            'POWER_FACTOR': 'Power Factor Improvement'
-        };
-        return titles[type] || 'Optimization';
-    }
-
-    // Dismiss alert
-    async dismissAlert(alertId) {
-        try {
-            const response = await fetch('/api/alerts/acknowledge', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ alertId })
-            });
-
-            if (response.ok) {
-                // Remove alert from UI
-                const alertElement = document.querySelector(`[data-alert-id="${alertId}"]`);
-                if (alertElement) {
-                    alertElement.style.animation = 'fadeOut 0.3s ease-out';
-                    setTimeout(() => alertElement.remove(), 300);
-                }
-                
-                this.showNotification('Alert dismissed', 'success');
-            } else {
-                throw new Error('Failed to dismiss alert');
-            }
-        } catch (error) {
-            console.error('Error dismissing alert:', error);
-            this.showNotification('Failed to dismiss alert', 'error');
-        }
-    }
-
-    // Show notification
-    showNotification(message, type = 'info') {
-        // Create notification element
-        const notification = document.createElement('div');
-        notification.className = `notification ${type}`;
-        notification.textContent = message;
-        
-        // Style notification
-        Object.assign(notification.style, {
-            position: 'fixed',
-            bottom: '20px',
-            right: '20px',
-            padding: '1rem 1.5rem',
-            borderRadius: '8px',
-            color: 'white',
-            fontWeight: '600',
-            zIndex: '9999',
-            animation: 'slideIn 0.3s ease-out'
+        })
+        .catch(error => {
+            console.error('Sync error:', error);
+            dashboard.showNotification('Sync failed', 'error');
         });
-
-        // Set background color based on type
-        const colors = {
-            success: '#28a745',
-            error: '#dc3545',
-            warning: '#ffc107',
-            info: '#17a2b8'
-        };
-        notification.style.backgroundColor = colors[type] || colors.info;
-
-        // Add to DOM
-        document.body.appendChild(notification);
-
-        // Auto remove after 3 seconds
-        setTimeout(() => {
-            notification.style.animation = 'slideOut 0.3s ease-out';
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
-    }
-}
-
-// Global functions for UI interactions
-function openSettings() {
-    const modal = document.getElementById('settingsModal');
-    modal.style.display = 'block';
-    
-    // Load current settings values
-    if (dashboard.currentData && dashboard.currentData.electricity_rate) {
-        document.getElementById('electricityRateInput').value = dashboard.currentData.electricity_rate;
-    }
-    
-    // Update system information
-    updateSystemInfo();
-}
-
-function updateSystemInfo() {
-    // Update last calibration (mock data)
-    const lastCalibration = new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000);
-    document.getElementById('lastCalibration').textContent = lastCalibration.toLocaleDateString();
-    
-    // Update system uptime (mock data)
-    const uptimeHours = Math.floor(Math.random() * 720 + 24); // 1-30 days
-    const uptimeDays = Math.floor(uptimeHours / 24);
-    const remainingHours = uptimeHours % 24;
-    document.getElementById('systemUptime').textContent = `${uptimeDays}d ${remainingHours}h`;
-}
-
-function closeSettings() {
-    const modal = document.getElementById('settingsModal');
-    modal.style.display = 'none';
-}
-
-async function updateElectricityRate() {
-    const rateInput = document.getElementById('electricityRateInput');
-    const newRate = parseFloat(rateInput.value);
-    
-    if (isNaN(newRate) || newRate <= 0) {
-        dashboard.showNotification('Please enter a valid rate', 'error');
-        return;
-    }
-
-    try {
-        const response = await fetch('/api/settings/rate', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ rate: newRate })
-        });
-
-        if (response.ok) {
-            dashboard.showNotification('Electricity rate updated successfully', 'success');
-            
-            // Update header display
-            document.getElementById('electricityRate').textContent = `Rate: ${newRate} BDT/kWh`;
-            
-            // Refresh data
-            dashboard.loadInitialData();
-        } else {
-            throw new Error('Failed to update rate');
-        }
-    } catch (error) {
-        console.error('Error updating electricity rate:', error);
-        dashboard.showNotification('Failed to update electricity rate', 'error');
-    }
-}
-
-async function updatePowerThreshold() {
-    const thresholdInput = document.getElementById('powerThresholdInput');
-    const newThreshold = parseFloat(thresholdInput.value);
-    
-    if (isNaN(newThreshold) || newThreshold <= 0) {
-        dashboard.showNotification('Please enter a valid power threshold', 'error');
-        return;
-    }
-
-    try {
-        const response = await fetch('/api/settings/power-threshold', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ threshold: newThreshold })
-        });
-
-        if (response.ok) {
-            dashboard.showNotification('Power threshold updated successfully', 'success');
-        } else {
-            throw new Error('Failed to update power threshold');
-        }
-    } catch (error) {
-        console.error('Error updating power threshold:', error);
-        dashboard.showNotification('Failed to update power threshold', 'error');
-    }
-}
-
-async function updateCostThreshold() {
-    const thresholdInput = document.getElementById('costThresholdInput');
-    const newThreshold = parseFloat(thresholdInput.value);
-    
-    if (isNaN(newThreshold) || newThreshold <= 0) {
-        dashboard.showNotification('Please enter a valid cost threshold', 'error');
-        return;
-    }
-
-    try {
-        const response = await fetch('/api/settings/cost-threshold', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ threshold: newThreshold })
-        });
-
-        if (response.ok) {
-            dashboard.showNotification('Cost threshold updated successfully', 'success');
-        } else {
-            throw new Error('Failed to update cost threshold');
-        }
-    } catch (error) {
-        console.error('Error updating cost threshold:', error);
-        dashboard.showNotification('Failed to update cost threshold', 'error');
-    }
-}
-
-function updateInterval() {
-    dashboard.showNotification('Update interval is controlled by WiFi module data frequency', 'info');
-}
-
-function toggleAutoRefresh() {
-    dashboard.showNotification('Auto-refresh is controlled by WiFi module data', 'info');
-}
-
-async function clearAllAlerts() {
-    if (!confirm('Are you sure you want to clear all alerts?')) {
-        return;
-    }
-
-    try {
-        const response = await fetch('/api/alerts/clear-all', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (response.ok) {
-            // Clear alerts from UI
-            const alertsContainer = document.getElementById('alertsContainer');
-            alertsContainer.innerHTML = '<div class="no-alerts">No active alerts</div>';
-            
-            dashboard.showNotification('All alerts cleared', 'success');
-        } else {
-            throw new Error('Failed to clear alerts');
-        }
-    } catch (error) {
-        console.error('Error clearing alerts:', error);
-        dashboard.showNotification('Failed to clear alerts', 'error');
-    }
-}
-
-async function updatePortLimits() {
-    const portLimits = {};
-    
-    // Collect limits for active ports only (1-2)
-    for (let port = 1; port <= 2; port++) {
-        const voltageLimit = parseFloat(document.getElementById(`port${port}VoltageLimit`).value);
-        const currentLimit = parseFloat(document.getElementById(`port${port}CurrentLimit`).value);
-        const powerLimit = parseFloat(document.getElementById(`port${port}PowerLimit`).value);
-        
-        if (isNaN(voltageLimit) || isNaN(currentLimit) || isNaN(powerLimit) || 
-            voltageLimit <= 0 || currentLimit <= 0 || powerLimit <= 0) {
-            dashboard.showNotification(`Please enter valid limits for Port ${port}`, 'error');
-            return;
-        }
-        
-        portLimits[`port${port}`] = {
-            maxVoltage: voltageLimit,
-            maxCurrent: currentLimit,
-            maxPower: powerLimit
-        };
-    }
-    
-    try {
-        const response = await fetch('/api/settings/port-limits', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ portLimits })
-        });
-
-        if (response.ok) {
-            dashboard.showNotification('Port safety limits updated successfully', 'success');
-        } else {
-            throw new Error('Failed to update port limits');
-        }
-    } catch (error) {
-        console.error('Error updating port limits:', error);
-        dashboard.showNotification('Failed to update port limits', 'error');
-    }
-}
-
-async function resetDailyData() {
-    if (!confirm('Are you sure you want to reset today\'s consumption data?')) {
-        return;
-    }
-
-    try {
-        const response = await fetch('/api/reset-daily', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (response.ok) {
-            dashboard.showNotification('Daily data reset successfully', 'success');
-            dashboard.loadInitialData();
-        } else {
-            throw new Error('Failed to reset daily data');
-        }
-    } catch (error) {
-        console.error('Error resetting daily data:', error);
-        dashboard.showNotification('Failed to reset daily data', 'error');
-    }
-}
-
-async function exportCSV() {
-    try {
-        // Get date range (last 30 days)
-        const endDate = new Date().toISOString().split('T')[0];
-        const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        
-        const response = await fetch('/api/export/csv', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ startDate, endDate })
-        });
-
-        if (response.ok) {
-            // Create download link
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `multiplug_data_${endDate}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-            
-            dashboard.showNotification('CSV export completed', 'success');
-        } else {
-            throw new Error('Failed to export CSV');
-        }
-    } catch (error) {
-        console.error('Error exporting CSV:', error);
-        dashboard.showNotification('Failed to export CSV', 'error');
-    }
-}
-
-async function exportPDF() {
-    try {
-        const response = await fetch('/api/export/pdf', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (response.ok) {
-            // Create download link
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `multiplug_report_${new Date().toISOString().split('T')[0]}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-            
-            dashboard.showNotification('PDF export completed', 'success');
-        } else {
-            throw new Error('Failed to export PDF');
-        }
-    } catch (error) {
-        console.error('Error exporting PDF:', error);
-        dashboard.showNotification('Failed to export PDF', 'error');
-    }
-}
-
-// Add CSS animations
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes slideIn {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-    }
-    
-    @keyframes slideOut {
-        from { transform: translateX(0); opacity: 1; }
-        to { transform: translateX(100%); opacity: 0; }
-    }
-    
-    @keyframes fadeOut {
-        from { opacity: 1; transform: scale(1); }
-        to { opacity: 0; transform: scale(0.8); }
-    }
-    
-    .notification {
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-    }
-`;
-document.head.appendChild(style);
-
-// Initialize dashboard when DOM is loaded
-let dashboard;
-document.addEventListener('DOMContentLoaded', () => {
-    dashboard = new SmartMultiplugDashboard();
-});
-
-// Handle page visibility changes (pause/resume updates when tab is hidden/visible)
-document.addEventListener('visibilitychange', () => {
-    if (dashboard) {
-        if (document.hidden) {
-            console.log('Dashboard paused (tab hidden)');
-        } else {
-            console.log('Dashboard resumed (tab visible)');
-            dashboard.loadInitialData(); // Refresh data when tab becomes visible
-        }
-    }
-});
-
-// Handle online/offline events
-window.addEventListener('online', () => {
-    if (dashboard) {
-        dashboard.showNotification('Connection restored', 'success');
-        dashboard.loadInitialData();
-    }
-});
-
-window.addEventListener('offline', () => {
-    if (dashboard) {
-        dashboard.showNotification('Connection lost', 'warning');
-    }
-});
-
-// Toggle port function - user priority with sync respect
-async function togglePort(port) {
-    const toggle = document.getElementById(`toggle${port}`);
-    const statusElement = document.getElementById(`status${port}`);
-    
-    // Lock toggle to prevent sync override during user control
-    dashboard.toggleLocked[`port${port}`] = true;
-    toggle.disabled = true;
-    
-    try {
-        const response = await fetch('/api/toggle', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ port })
-        });
-
-        if (response.ok) {
-            dashboard.showNotification(`Port ${port} ${toggle.checked ? 'ON' : 'OFF'}`, 'success');
-        } else {
-            throw new Error('Failed to toggle port');
-        }
-    } catch (error) {
-        console.error('Error toggling port:', error);
-        dashboard.showNotification('Failed to toggle port', 'error');
-        
-        // Revert toggle on error
-        toggle.checked = !toggle.checked;
-    } finally {
-        // Unlock after 3 seconds to allow sync to take over
-        setTimeout(() => {
-            toggle.disabled = false;
-            dashboard.toggleLocked[`port${port}`] = false;
-        }, 3000);
-    }
-}
-
-// Master toggle remains independent - no auto-sync with individual ports
-function updateMasterToggleState() {
-    // Removed auto-sync behavior - Master control now works like main electrical board switch
-    console.log('Master toggle operates independently of individual ports');
-}
-
-// Master toggle function with hardware sync safety
-async function toggleMaster() {
-    const masterToggle = document.getElementById('masterToggle');
-    const isOn = masterToggle.checked;
-    
-    // Check if already pending
-    if (dashboard.pendingStates.master !== null) {
-        dashboard.showNotification('Master control operation in progress, please wait', 'warning');
-        return;
-    }
-    
-    // Set pending state and disable control
-    dashboard.pendingStates.master = isOn;
-    masterToggle.disabled = true;
-    
-    try {
-        const response = await fetch('/api/master-control', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ enabled: isOn })
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to update master control');
-        }
-        
-        dashboard.showNotification(`Master control command sent, waiting for hardware confirmation`, 'info');
-        
-    } catch (error) {
-        console.error('Error toggling master:', error);
-        dashboard.showNotification('Failed to toggle master control', 'error');
-        
-        // Reset on error
-        dashboard.pendingStates.master = null;
-        masterToggle.disabled = false;
-        masterToggle.checked = !isOn;
-    }
 }

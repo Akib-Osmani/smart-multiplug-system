@@ -2,6 +2,9 @@
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 
 // WiFi Configuration
 const char* ssid = "akib";
@@ -14,6 +17,13 @@ const char* controlURL = "https://power-consumption-dashboard.up.railway.app/api
 // Pin Definitions for ESP32-C3 (2 ports)
 const int relayPins[2] = {2, 3}; // GPIO2, GPIO3
 bool relayStates[2] = {false, false};
+
+// OLED Display (I2C)
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET -1
+// I2C pins: SDA = GPIO8, SCL = GPIO9
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 // Sensor pins (using ADC for voltage/current sensing)
 const int voltageSensorPin = A0; // ADC pin for voltage sensing
@@ -51,6 +61,21 @@ void setup() {
   // Initialize sensor pin
   pinMode(voltageSensorPin, INPUT);
   
+  // Initialize OLED display
+  Wire.begin(8, 9); // SDA=GPIO8, SCL=GPIO9
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println("OLED allocation failed");
+  } else {
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0,0);
+    display.println("Smart Multiplug");
+    display.println("Initializing...");
+    display.display();
+    Serial.println("OLED initialized");
+  }
+  
   // Connect WiFi
   WiFi.begin(ssid, password);
   Serial.print("Connecting to WiFi");
@@ -62,20 +87,20 @@ void setup() {
   
   lastEnergyUpdate = millis();
   
-  Serial.println("ESP32-C3 Ready! Relay control mode activated.");
+  Serial.println("ESP32-C3 Ready! Manual relay control mode.");
   Serial.println("Commands: 1ON, 1OFF, 2ON, 2OFF, STATUS, SYNC, TEST");
   Serial.println("STATUS - Show system status");
   Serial.println("SYNC - Manual server sync");
   Serial.println("TEST - Test server connection");
+  Serial.println("Use SYNC command or dashboard sync button for server sync");
   
-  // Initial sync with server
-  Serial.println("Syncing with server...");
-  checkControlCommands();
+  // NO initial sync - manual control only
+  Serial.println("Auto-sync disabled. Use SYNC command or dashboard button.");
 }
 
 void loop() {
   static unsigned long lastSensorRead = 0;
-  static unsigned long lastControlCheck = 0;
+  static unsigned long lastDisplayUpdate = 0;
   
   // Send real sensor data every 5 seconds
   if(millis() - lastSensorRead >= 5000) {
@@ -83,13 +108,11 @@ void loop() {
     lastSensorRead = millis();
   }
   
-  // Check for control commands every 2 seconds - DISABLED FOR TESTING
-  /*
-  if(millis() - lastControlCheck >= 2000) {
-    checkControlCommands();
-    lastControlCheck = millis();
+  // Update OLED display every 2 seconds
+  if(millis() - lastDisplayUpdate >= 2000) {
+    updateOLEDDisplay();
+    lastDisplayUpdate = millis();
   }
-  */
   
   // Update energy calculations every 10 seconds
   if(millis() - lastEnergyUpdate >= 10000) {
@@ -269,6 +292,46 @@ void updateEnergyCalculations() {
                    i+1, dailyTotals[i].energy, dailyTotals[i].cost);
     }
   }
+}
+
+void updateOLEDDisplay() {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  
+  // Title
+  display.setCursor(0, 0);
+  display.println("KING AKIB HAHAAAA");
+  display.drawLine(0, 10, 128, 10, SSD1306_WHITE);
+  
+  // Port 1 data
+  display.setCursor(0, 15);
+  display.print("P1: ");
+  display.print(relayStates[0] ? "ON " : "OFF");
+  display.setCursor(0, 25);
+  display.print("V:");
+  display.print(currentReadings[0].voltage, 1);
+  display.print("V I:");
+  display.print(currentReadings[0].current, 2);
+  display.print("A");
+  
+  // Port 2 data
+  display.setCursor(0, 35);
+  display.print("P2: ");
+  display.print(relayStates[1] ? "ON " : "OFF");
+  display.setCursor(0, 45);
+  display.print("V:");
+  display.print(currentReadings[1].voltage, 1);
+  display.print("V I:");
+  display.print(currentReadings[1].current, 2);
+  display.print("A");
+  
+  // WiFi status
+  display.setCursor(0, 55);
+  display.print("WiFi: ");
+  display.print(WiFi.status() == WL_CONNECTED ? "OK" : "ERR");
+  
+  display.display();
 }
 
 void sendRealSensorData() {

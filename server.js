@@ -769,6 +769,14 @@ app.post('/api/toggle', async (req, res) => {
   }
 });
 
+// ESP32 sync trigger endpoint
+app.post('/api/sync-esp32', (req, res) => {
+  console.log('ESP32 sync triggered from dashboard');
+  // This endpoint just confirms the sync request
+  // ESP32 will sync when it polls /api/control next
+  res.json({ success: true, message: 'Sync triggered - ESP32 will update on next poll' });
+});
+
 // Database viewer endpoint
 app.get('/api/database/:table', (req, res) => {
   const { table } = req.params;
