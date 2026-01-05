@@ -181,8 +181,7 @@ function isPeakHour(hour) {
 
 // FIXED: Database operations that preserve relay state
 async function updateRealtimeData(port, voltage, current, power, preserveRelayState = true) {
-  const status = power > 0 ? 'online' : 'offline';
-  
+  // Status should be based on relay state, not just power
   return new Promise((resolve, reject) => {
     if (preserveRelayState) {
       // Get existing relay state first, then update only sensor data
@@ -190,6 +189,7 @@ async function updateRealtimeData(port, voltage, current, power, preserveRelaySt
         if (err) return reject(err);
         
         const existingRelayState = row ? row.relay_state : 'OFF';
+        const status = existingRelayState === 'ON' ? 'online' : 'offline';
         
         db.run(`INSERT OR REPLACE INTO realtime_data (port, voltage, current, power, status, relay_state, timestamp) 
                 VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`, 
@@ -734,33 +734,30 @@ app.post('/api/toggle', (req, res) => {
     
     const currentState = row ? row.relay_state : 'OFF';
     const newState = currentState === 'ON' ? 'OFF' : 'ON';
+    const newStatus = newState === 'ON' ? 'online' : 'offline';
     
     console.log(`Port ${port}: ${currentState} -> ${newState}`);
     
-    // Update database first
-    db.run(`UPDATE realtime_data SET relay_state = ? WHERE port = ?`, 
-           [newState, port], (err) => {
+    // Update database with both relay state and status
+    db.run(`UPDATE realtime_data SET relay_state = ?, status = ? WHERE port = ?`, 
+           [newState, newStatus, port], (err) => {
       if (err) {
         console.log(`No existing record for port ${port}, creating new one`);
         db.run(`INSERT OR REPLACE INTO realtime_data (port, voltage, current, power, status, relay_state) 
-                VALUES (?, 0, 0, 0, 'offline', ?)`, 
-               [port, newState], (err) => {
+                VALUES (?, 0, 0, 0, ?, ?)`, 
+               [port, newStatus, newState], (err) => {
           if (err) {
             console.error('Error creating new relay record:', err);
             return res.status(500).json({ error: err.message });
           }
           
           console.log(`Port ${port} relay state updated to ${newState}`);
-          // Send response after database update
           res.json({ success: true, port, state: newState, syncTriggered: true });
-          // Trigger immediate WebSocket sync
           io.emit('syncESP32', { port, state: newState });
         });
       } else {
         console.log(`Port ${port} relay state updated to ${newState}`);
-        // Send response after database update
         res.json({ success: true, port, state: newState, syncTriggered: true });
-        // Trigger immediate WebSocket sync
         io.emit('syncESP32', { port, state: newState });
       }
     });

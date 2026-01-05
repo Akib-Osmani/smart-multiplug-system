@@ -313,7 +313,7 @@ void updateOLEDDisplay() {
   
   // Title
   display.setCursor(0, 0);
-  display.println("Smart Multiplug");
+  display.println("Smart Power Consumption");
   display.drawLine(0, 10, 128, 10, SSD1306_WHITE);
   
   // Port 1 data
@@ -356,10 +356,14 @@ void sendRealSensorData() {
     http.addHeader("Content-Type", "application/json");
     http.setTimeout(3000);
     
-    // Read real sensor data
+    // Read real sensor data - DEBUG ADC values
     float voltage = readVoltage(port);
     float current = readCurrent(port);
     float power = voltage * current;
+    
+    // Debug: Print actual ADC reading
+    int adcValue = analogRead(voltageSensorPin);
+    Serial.printf("Port %d - ADC: %d, Voltage: %.1fV\n", port, adcValue, voltage);
     
     // Store current readings
     currentReadings[port-1].voltage = voltage;

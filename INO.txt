@@ -1,0 +1,259 @@
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <math.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+#include <ArduinoJson.h>
+ 
+// ---------- WiFi Configuration ----------
+const char* ssid = "YOUR_WIFI_SSID";
+const char* password = "YOUR_WIFI_PASSWORD";
+
+// ---------- Server URLs ----------
+const char* serverURL = "https://power-consumption-dashboard.up.railway.app/api/data";
+const char* controlURL = "https://power-consumption-dashboard.up.railway.app/api/control";
+
+// ---------- OLED ----------
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET -1
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+ 
+// ---------- Pins ----------
+#define VOLTAGE_PIN   34
+#define CURRENT1_PIN  35
+#define CURRENT2_PIN  32
+ 
+#define RELAY1 25
+#define RELAY2 26
+ 
+// ---------- ADC ----------
+#define ADC_RESOLUTION 4095.0
+#define ADC_REF 3.3
+ 
+// ---------- Calibration ----------
+float voltageCalibration = 403.0;   // ZMPT101B
+float currentCalibration = 30.0;    // ACS712 30A
+ 
+const int samples = 1000;
+ 
+// ---------- Relay State ----------
+bool relay1State = false;
+bool relay2State = false;
+
+// ---------- Timing ----------
+unsigned long lastControlCheck = 0;
+unsigned long lastDataSend = 0;
+ 
+void setup() {
+  Serial.begin(115200);
+ 
+  analogReadResolution(12);
+  analogSetAttenuation(ADC_11db);
+ 
+  pinMode(RELAY1, OUTPUT);
+  pinMode(RELAY2, OUTPUT);
+  digitalWrite(RELAY1, LOW);
+  digitalWrite(RELAY2, LOW);
+ 
+  // ---------- OLED Init ----------
+  Wire.begin(21, 22);
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println("OLED not found");
+    while (true);
+  }
+ 
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+ 
+  Serial.println("System Ready");
+  Serial.println("Commands: ON1 OFF1 ON2 OFF2 ALLON ALLOFF");
+
+  // ---------- WiFi Connect ----------
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(250);
+    Serial.print(".");
+  }
+  Serial.println("\nWiFi Connected: " + WiFi.localIP().toString());
+}
+ 
+float readRMS(int pin) {
+  float sum = 0, offset = 0;
+ 
+  for (int i = 0; i < samples; i++) {
+    offset += analogRead(pin);
+    delayMicroseconds(200);
+  }
+  offset /= samples;
+ 
+  for (int i = 0; i < samples; i++) {
+    float val = analogRead(pin) - offset;
+    sum += val * val;
+    delayMicroseconds(200);
+  }
+ 
+  return sqrt(sum / samples);
+}
+ 
+void handleSerial() {
+  if (!Serial.available()) return;
+ 
+  String cmd = Serial.readStringUntil('\n');
+  cmd.trim();
+  cmd.toUpperCase();
+ 
+  if (cmd == "ON1") relay1State = true;
+  else if (cmd == "OFF1") relay1State = false;
+  else if (cmd == "ON2") relay2State = true;
+  else if (cmd == "OFF2") relay2State = false;
+  else if (cmd == "ALLON") relay1State = relay2State = true;
+  else if (cmd == "ALLOFF") relay1State = relay2State = false;
+ 
+  digitalWrite(RELAY1, relay1State ? HIGH : LOW);
+  digitalWrite(RELAY2, relay2State ? HIGH : LOW);
+ 
+  Serial.print("Relay1: ");
+  Serial.print(relay1State ? "ON" : "OFF");
+  Serial.print(" | Relay2: ");
+  Serial.println(relay2State ? "ON" : "OFF");
+}
+
+void checkControlCommands() {
+  WiFiClientSecure client;
+  client.setInsecure();
+  
+  HTTPClient http;
+  http.begin(client, controlURL);
+  http.setTimeout(3000);
+  
+  int responseCode = http.GET();
+  
+  if(responseCode == 200) {
+    String response = http.getString();
+    
+    DynamicJsonDocument doc(1024);
+    DeserializationError error = deserializeJson(doc, response);
+    
+    if(!error) {
+      if(doc.containsKey("relay1")) {
+        String relay1Cmd = doc["relay1"].as<String>();
+        bool state = relay1Cmd == "ON";
+        if(relay1State != state) {
+          relay1State = state;
+          digitalWrite(RELAY1, state ? HIGH : LOW);
+          Serial.printf("Server Relay1: %s\n", state ? "ON" : "OFF");
+        }
+      }
+      
+      if(doc.containsKey("relay2")) {
+        String relay2Cmd = doc["relay2"].as<String>();
+        bool state = relay2Cmd == "ON";
+        if(relay2State != state) {
+          relay2State = state;
+          digitalWrite(RELAY2, state ? HIGH : LOW);
+          Serial.printf("Server Relay2: %s\n", state ? "ON" : "OFF");
+        }
+      }
+    }
+  }
+  
+  http.end();
+}
+
+void sendDataToServer(int port, float voltage, float current, float power) {
+  WiFiClientSecure client;
+  client.setInsecure();
+  
+  HTTPClient http;
+  http.begin(client, serverURL);
+  http.addHeader("Content-Type", "application/json");
+  http.setTimeout(3000);
+  
+  String data = "{\"port\":" + String(port) + 
+               ",\"voltage\":" + String(voltage, 1) + 
+               ",\"current\":" + String(current, 2) + 
+               ",\"power\":" + String(power, 0) + 
+               ",\"arduino_connected\":true}";
+  
+  int responseCode = http.POST(data);
+  
+  if(responseCode > 0) {
+    Serial.printf("Port %d sent [%d]\n", port, responseCode);
+  }
+  
+  http.end();
+}
+ 
+void loop() {
+  handleSerial();
+
+  // Check server for relay control every 3 seconds
+  if(millis() - lastControlCheck >= 3000) {
+    checkControlCommands();
+    lastControlCheck = millis();
+  }
+ 
+  float vrmsADC = readRMS(VOLTAGE_PIN);
+  float i1rmsADC = readRMS(CURRENT1_PIN);
+  float i2rmsADC = readRMS(CURRENT2_PIN);
+ 
+  float voltage = (vrmsADC * ADC_REF / ADC_RESOLUTION) * voltageCalibration;
+  float current1 = (i1rmsADC * ADC_REF / ADC_RESOLUTION) * currentCalibration;
+  float current2 = (i2rmsADC * ADC_REF / ADC_RESOLUTION) * currentCalibration;
+ 
+  if (voltage < 5) voltage = 0;
+  if (current1 < 0.01) current1 = 0;
+  if (current2 < 0.01) current2 = 0;
+
+  float power1 = voltage * current1;
+  float power2 = voltage * current2;
+
+  // Send data to server every 5 seconds
+  if(millis() - lastDataSend >= 5000) {
+    sendDataToServer(1, voltage, current1, power1);
+    delay(100);
+    sendDataToServer(2, voltage, current2, power2);
+    lastDataSend = millis();
+  }
+ 
+  // ---------- OLED Display ----------
+  display.clearDisplay();
+  display.setCursor(0, 0);
+ 
+  display.print("V: ");
+  display.print(voltage, 1);
+  display.println(" V");
+ 
+  display.print("I1: ");
+  display.print(current1, 2);
+  display.println(" A");
+ 
+  display.print("I2: ");
+  display.print(current2, 2);
+  display.println(" A");
+ 
+  display.print("R1: ");
+  display.print(relay1State ? "ON " : "OFF");
+  display.print(" R2: ");
+  display.println(relay2State ? "ON" : "OFF");
+ 
+  display.display();
+ 
+  // ---------- Serial ----------
+  Serial.print("V:");
+  Serial.print(voltage, 1);
+  Serial.print("V | I1:");
+  Serial.print(current1, 2);
+  Serial.print("A | I2:");
+  Serial.print(current2, 2);
+  Serial.println("A");
+ 
+  delay(1000);
+}
+ 
+ 

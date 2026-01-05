@@ -2,6 +2,11 @@
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <ACS712.h>  // Add ACS712 Library
+#include <ZMPT101B.h>  // Add ZMPT101B Library
 
 // WiFi Configuration
 const char* ssid = "akib";
@@ -15,8 +20,19 @@ const char* controlURL = "https://power-consumption-dashboard.up.railway.app/api
 const int relayPins[2] = {2, 3}; // GPIO2, GPIO3
 bool relayStates[2] = {false, false};
 
+// OLED Display (I2C)
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET -1
+// I2C pins: SDA = GPIO8, SCL = GPIO9
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
 // Sensor pins (using ADC for voltage/current sensing)
 const int voltageSensorPin = A0; // ADC pin for voltage sensing
+
+// Initialize ACS712 current sensor and ZMPT101B voltage sensor
+ACS712 currentSensor(0); // Use appropriate pin number for ACS712
+ZMPT101B voltageSensor(A1); // Use appropriate pin for voltage sensor
 
 // Current sensor readings
 struct SensorData {
@@ -48,8 +64,32 @@ void setup() {
     Serial.printf("Relay %d initialized: OFF\n", i+1);
   }
   
-  // Initialize sensor pin
+  // Initialize sensor pins
   pinMode(voltageSensorPin, INPUT);
+  
+  // Initialize OLED display
+  Wire.begin(5, 6); // Try GPIO5=SDA, GPIO6=SCL
+  Serial.println("Initializing OLED...");
+  
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println("OLED allocation failed - trying 0x3D");
+    if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3D)) {
+      Serial.println("OLED failed on both addresses");
+    } else {
+      Serial.println("OLED found at 0x3D");
+    }
+  } else {
+    Serial.println("OLED found at 0x3C");
+  }
+  
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0,0);
+  display.println("Smart Power Consumption");
+  display.println("Initializing...");
+  display.display();
+  delay(1000);
   
   // Connect WiFi
   WiFi.begin(ssid, password);
@@ -62,11 +102,12 @@ void setup() {
   
   lastEnergyUpdate = millis();
   
-  Serial.println("ESP32-C3 Ready! Relay control mode activated.");
+  Serial.println("ESP32-C3 Ready! Auto-sync enabled every 3 seconds.");
   Serial.println("Commands: 1ON, 1OFF, 2ON, 2OFF, STATUS, SYNC, TEST");
   Serial.println("STATUS - Show system status");
   Serial.println("SYNC - Manual server sync");
   Serial.println("TEST - Test server connection");
+  Serial.println("Toggle buttons will control hardware within 3 seconds");
   
   // Initial sync with server
   Serial.println("Syncing with server...");
@@ -75,6 +116,7 @@ void setup() {
 
 void loop() {
   static unsigned long lastSensorRead = 0;
+  static unsigned long lastDisplayUpdate = 0;
   static unsigned long lastControlCheck = 0;
   
   // Send real sensor data every 5 seconds
@@ -83,8 +125,14 @@ void loop() {
     lastSensorRead = millis();
   }
   
-  // Check for control commands every 2 seconds
-  if(millis() - lastControlCheck >= 2000) {
+  // Update OLED display every 2 seconds
+  if(millis() - lastDisplayUpdate >= 2000) {
+    updateOLEDDisplay();
+    lastDisplayUpdate = millis();
+  }
+  
+  // Check for control commands every 3 seconds (fast auto-sync)
+  if(millis() - lastControlCheck >= 3000) {
     checkControlCommands();
     lastControlCheck = millis();
   }
@@ -217,38 +265,15 @@ void checkControlCommands() {
 }
 
 float readVoltage(int port) {
-  // Read voltage from ADC with proper scaling for ESP32-C3
-  int adcValue = analogRead(voltageSensorPin);
-  float voltage = 0;
-  
-  if(relayStates[port-1]) {
-    // ESP32-C3 ADC is 12-bit (0-4095)
-    voltage = (adcValue / 4095.0) * 3.3 * 100.0; // 100:1 voltage divider
-    voltage = 220 + (voltage - 220) * 0.1; // Scale around 220V
-    voltage += random(-3, 4); // Real-world variation
-    
-    // Ensure realistic voltage range
-    voltage = constrain(voltage, 210, 235);
-  }
-  
+  // Use ZMPT101B to read the voltage
+  float voltage = voltageSensor.getVoltage();
   return voltage;
 }
 
 float readCurrent(int port) {
-  if(!relayStates[port-1]) return 0;
-  
-  // Realistic current profiles based on actual appliances
-  float baseCurrent = 0;
-  switch(port) {
-    case 1: // AC Unit - variable load
-      baseCurrent = 4.2 + (random(-80, 81) / 100.0); // 3.4A to 5.0A
-      break;
-    case 2: // Refrigerator - cyclic load
-      baseCurrent = 1.6 + (random(-40, 41) / 100.0); // 1.2A to 2.0A
-      break;
-  }
-  
-  return max(0.0f, baseCurrent);
+  // Use ACS712 to read current
+  float current = currentSensor.getCurrentAC();
+  return current;
 }
 
 void updateEnergyCalculations() {
@@ -267,6 +292,46 @@ void updateEnergyCalculations() {
                    i+1, dailyTotals[i].energy, dailyTotals[i].cost);
     }
   }
+}
+
+void updateOLEDDisplay() {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  
+  // Title
+  display.setCursor(0, 0);
+  display.println("Smart Power Consumption");
+  display.drawLine(0, 10, 128, 10, SSD1306_WHITE);
+  
+  // Port 1 data
+  display.setCursor(0, 15);
+  display.print("P1: ");
+  display.print(relayStates[0] ? "ON " : "OFF");
+  display.setCursor(0, 25);
+  display.print("V:");
+  display.print(currentReadings[0].voltage, 1);
+  display.print("V I:");
+  display.print(currentReadings[0].current, 2);
+  display.print("A");
+  
+  // Port 2 data
+  display.setCursor(0, 35);
+  display.print("P2: ");
+  display.print(relayStates[1] ? "ON " : "OFF");
+  display.setCursor(0, 45);
+  display.print("V:");
+  display.print(currentReadings[1].voltage, 1);
+  display.print("V I:");
+  display.print(currentReadings[1].current, 2);
+  display.print("A");
+  
+  // WiFi status
+  display.setCursor(0, 55);
+  display.print("WiFi: ");
+  display.print(WiFi.status() == WL_CONNECTED ? "OK" : "ERR");
+  
+  display.display();
 }
 
 void sendRealSensorData() {
@@ -291,7 +356,6 @@ void sendRealSensorData() {
     currentReadings[port-1].energy = dailyTotals[port-1].energy;
     currentReadings[port-1].cost = dailyTotals[port-1].cost;
     
-    // IMPORTANT: Don't send relay_state in sensor data to avoid overwriting server state
     String data = "{\"port\":" + String(port) + 
                  ",\"voltage\":" + String(voltage, 1) + 
                  ",\"current\":" + String(current, 2) + 
