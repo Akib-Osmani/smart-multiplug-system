@@ -546,6 +546,33 @@ function resetDailyData() {
     }
 }
 
+function resetMonthlyData() {
+    const year = prompt('Year (leave empty for current year):');
+    const month = prompt('Month (1-12, leave empty for current month):');
+    
+    if (confirm('Reset monthly consumption data? This cannot be undone.')) {
+        const body = {};
+        if (year) body.year = parseInt(year);
+        if (month) body.month = parseInt(month);
+        
+        fetch('/api/reset-monthly', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                dashboard.showNotification(result.message || 'Monthly data reset successfully', 'success');
+            }
+        })
+        .catch(error => {
+            console.error('Reset error:', error);
+            dashboard.showNotification('Reset failed', 'error');
+        });
+    }
+}
+
 function clearAllAlerts() {
     dashboard.showNotification('Alert clearing not implemented', 'info');
 }

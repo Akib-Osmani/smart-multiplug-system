@@ -709,16 +709,29 @@ app.post('/api/settings/rate', async (req, res) => {
   }
 });
 
-app.post('/api/reset-daily', (req, res) => {
-  const today = moment().format('YYYY-MM-DD');
+app.post('/api/reset-monthly', (req, res) => {
+  const { year, month } = req.body;
   
-  db.run("DELETE FROM daily_consumption WHERE date = ?", [today], async (err) => {
-    if (err) return res.status(500).json({ error: err.message });
+  if (year && month) {
+    db.run("DELETE FROM monthly_consumption WHERE year = ? AND month = ?", [year, month], async (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      
+      const updatedData = await getDashboardData();
+      io.emit('dataUpdate', updatedData);
+      res.json({ success: true, message: `Monthly data deleted for ${year}-${month}` });
+    });
+  } else {
+    const currentYear = moment().year();
+    const currentMonth = moment().month() + 1;
     
-    const updatedData = await getDashboardData();
-    io.emit('dataUpdate', updatedData);
-    res.json({ success: true });
-  });
+    db.run("DELETE FROM monthly_consumption WHERE year = ? AND month = ?", [currentYear, currentMonth], async (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      
+      const updatedData = await getDashboardData();
+      io.emit('dataUpdate', updatedData);
+      res.json({ success: true, message: `Current month data deleted` });
+    });
+  }
 });
 
 // Toggle relay endpoint - OPTIMIZED with immediate ESP32 sync trigger
